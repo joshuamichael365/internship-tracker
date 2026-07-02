@@ -18,6 +18,7 @@ interface SimplifyListing {
   is_visible?: boolean;
   date_posted?: number;
   sponsorship?: string;
+  terms?: string[];
   [k: string]: unknown;
 }
 
@@ -38,7 +39,8 @@ function parseListingsJson(body: string): NormalizedPosting[] {
       url: r.url || r.application_link || "",
       locations: r.locations ?? [],
       postedAt: r.date_posted ? new Date(r.date_posted * 1000).toISOString() : undefined,
-      raw: { sponsorship: mapSponsorship(r.sponsorship) },
+      terms: r.terms,
+      raw: { sponsorship: mapSponsorship(r.sponsorship), listing: r },
     }))
     .filter((r) => r.url);
 }

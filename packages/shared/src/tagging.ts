@@ -42,6 +42,27 @@ export function classifyLocationMode(locations: string[], description = ""): Loc
   return "unknown";
 }
 
+const TERM_RE = /\b(summer|fall|autumn|winter|spring)\s*(20\d\d)?\b/gi;
+
+/** Normalizes term/season labels: "Summer 2026", "Fall 2026", or bare "Summer". */
+export function extractTerms(title: string, provided?: string[]): string[] {
+  const out = new Set<string>();
+  for (const t of provided ?? []) {
+    const m = /(summer|fall|autumn|winter|spring)\s*(20\d\d)?/i.exec(t);
+    if (m) {
+      const season = m[1]!.toLowerCase() === "autumn" ? "Fall" : m[1]![0]!.toUpperCase() + m[1]!.slice(1).toLowerCase();
+      out.add(m[2] ? `${season} ${m[2]}` : season);
+    } else if (t.trim() && !/^(n\/a|tbd)$/i.test(t.trim())) out.add(t.trim());
+  }
+  if (out.size === 0) {
+    for (const m of title.matchAll(TERM_RE)) {
+      const season = m[1]!.toLowerCase() === "autumn" ? "Fall" : m[1]![0]!.toUpperCase() + m[1]!.slice(1).toLowerCase();
+      out.add(m[2] ? `${season} ${m[2]}` : season);
+    }
+  }
+  return [...out];
+}
+
 /** True if the posting is CS-relevant at all (drops marketing/finance/etc. roles from broad boards). */
 export function isRelevantRole(title: string): boolean {
   return (

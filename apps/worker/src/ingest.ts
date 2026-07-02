@@ -4,6 +4,7 @@ import {
   classifyLocationMode,
   classifyRole,
   dedupeHash,
+  extractTerms,
   isRelevantRole,
   normalizeCompany,
   normalizeTitle,
@@ -90,6 +91,7 @@ export async function ingestPostings(
         description: item.description,
         deadline: safeDate(item.deadline),
         postedAt: safeDate(item.postedAt),
+        terms: extractTerms(item.title, item.terms),
         status: suppressed ? "hidden" : "active",
         sponsorship:
           rawTags.sponsorship === "sponsors" || rawTags.sponsorship === "citizens_only"

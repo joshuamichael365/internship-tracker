@@ -2,6 +2,7 @@ export * from "./client";
 export * from "./schema";
 
 // Re-export query operators so consumers don't need their own drizzle-orm copy.
+export type { SQL } from "drizzle-orm";
 export {
   and,
   asc,

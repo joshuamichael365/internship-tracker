@@ -1,0 +1,1 @@
+ALTER TABLE "postings" ADD COLUMN "terms" jsonb DEFAULT '[]'::jsonb NOT NULL;

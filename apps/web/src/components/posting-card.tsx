@@ -16,6 +16,7 @@ export interface PostingCardData {
   deadline: Date | null;
   bookmarked: boolean;
   seenIn: { sourceId: number }[];
+  terms: string[];
 }
 
 const ROLE_COLORS: Record<string, string> = {
@@ -61,6 +62,11 @@ export function PostingCard({ posting }: { posting: PostingCardData }) {
         >
           {ROLE_LABELS[posting.roleType] ?? posting.roleType}
         </span>
+        {posting.terms[0] && (
+          <span className="rounded-full bg-black/[0.06] px-2 py-0.5 text-[11px] font-semibold text-secondary dark:bg-white/[0.1]">
+            {posting.terms[0]}
+          </span>
+        )}
         {posting.jobLevel === "new_grad" && (
           <span className="rounded-full bg-black/[0.06] px-2 py-0.5 text-[11px] font-semibold text-secondary dark:bg-white/[0.1]">
             New Grad

@@ -39,6 +39,7 @@ export interface NormalizedPosting {
   description?: string;
   deadline?: string; // ISO date if the source states one
   postedAt?: string; // ISO date if the source states one
+  terms?: string[]; // e.g. ["Summer 2026"] if the source states them
   raw?: unknown;
 }
 

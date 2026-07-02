@@ -88,6 +88,8 @@ export const postings = pgTable(
     firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
     status: postingStatus("status").notNull().default("active"),
     sponsorship: sponsorship("sponsorship").notNull().default("unknown"),
+    /** e.g. ["Summer 2026", "Fall 2026"] — from the source or parsed out of the title */
+    terms: jsonb("terms").$type<string[]>().notNull().default([]),
     bookmarked: boolean("bookmarked").notNull().default(false),
     notes: text("notes"),
     /** every source that reported this posting: [{ sourceId, url, seenAt }] */
