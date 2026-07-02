@@ -140,13 +140,20 @@ export function NotificationSettings({ initial, vapidPublicKey }: Props) {
       <div className="grid gap-2.5 border-t border-separator pt-4">
         {(
           [
-            ["push", "Web push"],
-            ["email", "Email"],
-            ["sms", "SMS (Twilio)"],
+            ["push", "Web push", null],
+            ["email", "Email", null],
+            [
+              "sms",
+              "SMS (Twilio)",
+              "Off by default — costs ~$5–10/mo and needs Twilio A2P registration (see DEPLOYMENT.md). Push and email cover everything until you flip this on.",
+            ],
           ] as const
-        ).map(([key, label]) => (
-          <div key={key} className="flex items-center justify-between">
-            <span className="text-[14px]">{label}</span>
+        ).map(([key, label, note]) => (
+          <div key={key} className="flex items-center justify-between gap-4">
+            <div>
+              <span className="text-[14px]">{label}</span>
+              {note && <p className="mt-0.5 text-[12px] text-tertiary">{note}</p>}
+            </div>
             <Toggle
               label={label}
               checked={state.channels[key]}
