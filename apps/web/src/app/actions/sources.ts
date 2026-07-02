@@ -52,8 +52,12 @@ export async function addPresetSource(preset: "simplify" | "vanshb03") {
     },
     vanshb03: {
       kind: "github_repo" as const,
-      name: "vanshb03 / Summer Internships",
-      config: { repo: "vanshb03/Summer2027-Internships", branch: "dev" },
+      name: "vanshb03 / Summer 2027 Internships",
+      config: {
+        repo: "vanshb03/Summer2027-Internships",
+        branch: "dev",
+        listingsPath: ".github/scripts/listings.json",
+      },
     },
   };
   const p = presets[preset];

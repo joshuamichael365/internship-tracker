@@ -45,6 +45,22 @@ export async function updateStage(id: number, stage: ApplicationStage) {
   refresh();
 }
 
+const PRIVATE_HOST_RE =
+  /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.(internal|local)$)/i;
+
+/** Only fetch public http(s) URLs — never internal/metadata addresses. */
+function safeToFetch(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    if (PRIVATE_HOST_RE.test(u.hostname)) return false;
+    if (/^172\.(1[6-9]|2\d|3[01])\./.test(u.hostname)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function addManualApplication(formData: FormData) {
   const url = String(formData.get("url") ?? "").trim();
   let company = String(formData.get("company") ?? "").trim();
@@ -53,7 +69,7 @@ export async function addManualApplication(formData: FormData) {
   if (!url) return;
 
   // Paste-a-link flow: try to fill company/role from the page title.
-  if (!company || !roleTitle) {
+  if ((!company || !roleTitle) && safeToFetch(url)) {
     try {
       const res = await fetch(url, {
         signal: AbortSignal.timeout(5000),
@@ -70,6 +86,15 @@ export async function addManualApplication(formData: FormData) {
     } catch {
       if (!roleTitle) roleTitle = "Untitled role";
       if (!company) company = new URL(url).hostname.replace(/^www\./, "");
+    }
+  }
+
+  if (!roleTitle) roleTitle = "Untitled role";
+  if (!company) {
+    try {
+      company = new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+      company = "Unknown";
     }
   }
 
