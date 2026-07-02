@@ -20,7 +20,7 @@ Steps marked **[you]** need your accounts/browser; everything else is config tha
    - **worker** — root directory `apps/worker`; build `pnpm install`; start `pnpm --filter worker start`.
    (Railway auto-detects pnpm workspaces; set "Root Directory" to `/` and override the start command per service if it doesn't.)
 5. Set env vars (both services get `DATABASE_URL` by referencing the Postgres service):
-   - Both: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `APP_URL=https://<web-domain>`
+   - Both: `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `APP_URL=https://web-production-64a44.up.railway.app`
    - Web: `AUTH_SECRET` (fresh `openssl rand -base64 32`), `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `ALLOWED_EMAIL=joshuamichael365@gmail.com`, `VAPID_PUBLIC_KEY`, `EXTENSION_TOKEN` (fresh `openssl rand -hex 24`), `ANTHROPIC_API_KEY`, `UPLOAD_DIR=/data/uploads`
    - Worker: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NOTIFY_EMAIL_TO`, `RESEND_API_KEY`, `TWILIO_*`, `ANTHROPIC_API_KEY`
    - **Generate fresh VAPID keys for prod** (`pnpm dlx web-push generate-vapid-keys`) — don't reuse the dev pair in git-ignored `.env`.
@@ -33,7 +33,7 @@ Steps marked **[you]** need your accounts/browser; everything else is config tha
 1. **[you]** https://console.cloud.google.com → create project `internship-tracker`.
 2. APIs & Services → OAuth consent screen → External → add yourself as a test user (stays in "Testing" mode forever — it's a single-user app).
 3. Credentials → Create OAuth Client ID → Web application:
-   - Authorized redirect URI: `https://<web-domain>/api/auth/callback/google` (plus `http://localhost:3000/api/auth/callback/google` for dev).
+   - Authorized redirect URI: `https://web-production-64a44.up.railway.app/api/auth/callback/google` (plus `http://localhost:3000/api/auth/callback/google` for dev).
 4. Copy client id/secret into `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`, remove `AUTH_DISABLED` from any env, redeploy.
 5. For **Google Drive storage** (optional): enable the Drive API in the same project, add scope `https://www.googleapis.com/auth/drive.file` on the consent screen, mint a refresh token via OAuth playground (https://developers.google.com/oauthplayground with your own client creds), set `GDRIVE_CLIENT_ID/SECRET/REFRESH_TOKEN` on the web service.
 
