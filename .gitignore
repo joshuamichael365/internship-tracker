@@ -1,0 +1,14 @@
+node_modules/
+.pnpm-store/
+.next/
+dist/
+out/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+.turbo/
+coverage/
+apps/extension/dist/
+data/

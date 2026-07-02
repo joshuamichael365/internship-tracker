@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ALTER COLUMN "notification_rules" SET DEFAULT '{}'::jsonb;
