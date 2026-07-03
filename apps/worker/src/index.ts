@@ -3,6 +3,7 @@ import { pollSources } from "./tasks/poll-sources.js";
 import { autoArchive } from "./tasks/auto-archive.js";
 import { sendDigest } from "./tasks/send-digest.js";
 import { sendConfirmation } from "./tasks/send-confirmation.js";
+import { sendBlockerNotice } from "./tasks/send-blocker-notice.js";
 import { sendReminders } from "./tasks/send-reminders.js";
 
 const DATABASE_URL =
@@ -17,6 +18,7 @@ async function main() {
       auto_archive: autoArchive,
       send_digest: sendDigest,
       send_confirmation: sendConfirmation,
+      send_blocker_notice: sendBlockerNotice,
       send_reminders: sendReminders,
     },
     // Discovery is latency-critical: poll every minute (each poller uses

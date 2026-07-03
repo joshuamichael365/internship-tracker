@@ -51,6 +51,7 @@ export async function GET(req: Request) {
         roleTitle: match.roleTitle,
         mode: match.mode,
         drafts: match.drafts ?? {},
+        autoApply: { approved: !!match.autoApplyApprovedAt },
         coverLetterPdfUrl: coverLetterDoc ? `/api/assist/document/${coverLetterDoc.id}` : null,
       },
       profile: prof?.data ?? {},

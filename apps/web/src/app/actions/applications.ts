@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, applications, db, eq, postings, reminders, sql } from "@tracker/db";
-import { normalizeCompany, normalizeTitle, type ApplicationStage } from "@tracker/shared";
+import { applications, db, eq, reminders } from "@tracker/db";
+import { type ApplicationStage } from "@tracker/shared";
+import { onApplied } from "@/lib/applied-side-effects";
 
 function refresh() {
   revalidatePath("/tracker");
@@ -26,21 +27,7 @@ export async function updateStage(id: number, stage: ApplicationStage) {
   // First transition into "applied": fire the submission receipt and hide
   // matching active postings so reposts stop showing/notifying.
   if (stage === "applied" && !wasApplied) {
-    await db.execute(
-      sql`select graphile_worker.add_job('send_confirmation', json_build_object('applicationId', ${id}::int))`,
-    );
-    const active = await db
-      .select({ id: postings.id, company: postings.company, title: postings.title })
-      .from(postings)
-      .where(eq(postings.status, "active"));
-    const cKey = normalizeCompany(app.company);
-    const tKey = normalizeTitle(app.roleTitle);
-    const toHide = active
-      .filter((p) => normalizeCompany(p.company) === cKey && normalizeTitle(p.title) === tKey)
-      .map((p) => p.id);
-    for (const pid of toHide) {
-      await db.update(postings).set({ status: "hidden" }).where(eq(postings.id, pid));
-    }
+    await onApplied(id, app.company, app.roleTitle);
   }
   refresh();
 }
@@ -123,7 +110,16 @@ export async function updateApplication(
 export async function setApplicationMode(id: number, mode: "manual" | "assist" | "auto" | null) {
   const [app] = await db.select().from(applications).where(eq(applications.id, id)).limit(1);
   if (!app) return;
-  await db.update(applications).set({ mode, updatedAt: new Date() }).where(eq(applications.id, id));
+  // Any move away from 'auto' revokes a standing auto-apply approval. Auto is
+  // only ever set through approveAutoApply, never here.
+  await db
+    .update(applications)
+    .set({
+      mode,
+      updatedAt: new Date(),
+      ...(mode !== "auto" ? { autoApplyApprovedAt: null } : {}),
+    })
+    .where(eq(applications.id, id));
 
   // Record recommendation-vs-choice so the recommender can learn override patterns.
   const rec = app.modeRecommendation as { recommended?: string; signals?: unknown } | null;
@@ -133,6 +129,33 @@ export async function setApplicationMode(id: number, mode: "manual" | "assist" |
       applicationId: id,
       recommended: rec.recommended as "manual" | "assist" | "auto",
       chosen: mode,
+      signals: (rec.signals ?? {}) as Record<string, unknown>,
+    });
+  }
+  revalidatePath(`/tracker/${id}`);
+  refresh();
+}
+
+/**
+ * Full Auto-Apply opt-in. Only reached through the pre-submit preview + explicit
+ * checkbox in auto-apply-optin.tsx — mode 'auto' is never set any other way.
+ * Per-application and revocable (setApplicationMode clears the approval).
+ */
+export async function approveAutoApply(id: number) {
+  const [app] = await db.select().from(applications).where(eq(applications.id, id)).limit(1);
+  if (!app) return;
+  await db
+    .update(applications)
+    .set({ mode: "auto", autoApplyApprovedAt: new Date(), blockerRetries: 0, updatedAt: new Date() })
+    .where(eq(applications.id, id));
+
+  const rec = app.modeRecommendation as { recommended?: string; signals?: unknown } | null;
+  if (rec?.recommended) {
+    const { modeDecisions } = await import("@tracker/db");
+    await db.insert(modeDecisions).values({
+      applicationId: id,
+      recommended: rec.recommended as "manual" | "assist" | "auto",
+      chosen: "auto",
       signals: (rec.signals ?? {}) as Record<string, unknown>,
     });
   }

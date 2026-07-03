@@ -136,6 +136,10 @@ export const applications = pgTable(
     }>(),
     stage: applicationStage("stage").notNull().default("saved"),
     resumeId: integer("resume_id").references(() => resumes.id, { onDelete: "set null" }),
+    /** Set only via the explicit per-application auto-apply opt-in; cleared on any mode change away from 'auto'. */
+    autoApplyApprovedAt: timestamp("auto_apply_approved_at", { withTimezone: true }),
+    /** How many times the extension hit a blocker (CAPTCHA/bot-check) on this one; notifies at 3. */
+    blockerRetries: integer("blocker_retries").notNull().default(0),
     appliedAt: timestamp("applied_at", { withTimezone: true }),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

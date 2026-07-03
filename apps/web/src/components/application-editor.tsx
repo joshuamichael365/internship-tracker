@@ -13,6 +13,7 @@ import {
   updateStage,
 } from "@/app/actions/applications";
 import { STAGES, type Stage } from "@/components/tracker-board";
+import { AutoApplyOptin, type AutoApplyData } from "@/components/auto-apply-optin";
 
 export interface EditorData {
   id: number;
@@ -20,12 +21,14 @@ export interface EditorData {
   roleTitle: string;
   location: string | null;
   mode: "manual" | "assist" | "auto" | null;
+  autoApplyApprovedAt: string | null;
   stage: Stage;
   notes: string | null;
   resumeId: number | null;
   reminders: { id: number; label: string; dueAt: string; done: boolean }[];
   resumes: { id: number; name: string }[];
   recommendation: { recommended: "manual" | "assist"; reasons: string[] } | null;
+  autoApply: AutoApplyData;
 }
 
 const MODES = [
@@ -44,8 +47,8 @@ const MODES = [
   {
     value: "auto" as const,
     label: "Full Auto-Apply",
-    desc: "Submits for you after a deliberate per-application opt-in. Arrives in Phase 2.",
-    available: false,
+    desc: "Submits for you after a deliberate per-application opt-in. You review everything once, up front.",
+    available: true,
   },
 ];
 
@@ -60,6 +63,7 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
     roleTitle: data.roleTitle,
     location: data.location ?? "",
   });
+  const [showOptin, setShowOptin] = useState(false);
 
   return (
     <div className="grid content-start gap-4">
@@ -141,11 +145,18 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
             <button
               key={m.value}
               disabled={!m.available || pending}
-              onClick={() =>
+              onClick={() => {
+                // Auto never sets the mode directly — it opens the pre-submit
+                // review, and approval happens there. Other modes toggle as before.
+                if (m.value === "auto") {
+                  setShowOptin(data.mode !== "auto");
+                  return;
+                }
+                setShowOptin(false);
                 startTransition(() =>
                   setApplicationMode(data.id, data.mode === m.value ? null : m.value),
-                )
-              }
+                );
+              }}
               className={`rounded-xl border p-3 text-left transition-colors ${
                 data.mode === m.value
                   ? "border-accent bg-accent-soft"
@@ -160,6 +171,36 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
             </button>
           ))}
         </div>
+
+        {/* Standing auto-apply approval — revocable. */}
+        {data.mode === "auto" && !showOptin && (
+          <p className="mt-2 text-[12px] text-secondary">
+            Approved{" "}
+            {data.autoApplyApprovedAt
+              ? new Date(data.autoApplyApprovedAt).toLocaleDateString([], {
+                  month: "short",
+                  day: "numeric",
+                })
+              : ""}{" "}
+            ·{" "}
+            <button
+              disabled={pending}
+              onClick={() => startTransition(() => setApplicationMode(data.id, null))}
+              className="font-medium text-danger hover:underline disabled:opacity-50"
+            >
+              Revoke
+            </button>
+          </p>
+        )}
+
+        {/* Pre-submit review — opened by clicking Full Auto-Apply. */}
+        {showOptin && (
+          <AutoApplyOptin
+            applicationId={data.id}
+            data={data.autoApply}
+            onCancel={() => setShowOptin(false)}
+          />
+        )}
       </div>
 
       {/* Resume */}

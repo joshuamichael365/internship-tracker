@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import { applications, db, eq, postings, reminders, resumes } from "@tracker/db";
+import { applications, db, eq, postings, profile, reminders, resumes } from "@tracker/db";
 import { ApplicationEditor } from "@/components/application-editor";
 import { AssistPanel } from "@/components/assist-panel";
 import { Card, ModeBadge } from "@/components/ui";
@@ -29,13 +29,16 @@ export default async function ApplicationDetail({ params }: { params: Promise<{ 
       .where(eq(applications.id, id));
   }
 
-  const [rems, allResumes, posting] = await Promise.all([
+  const [rems, allResumes, posting, [prof]] = await Promise.all([
     db.select().from(reminders).where(eq(reminders.applicationId, id)),
     db.select({ id: resumes.id, name: resumes.name }).from(resumes),
     app.postingId
       ? db.select().from(postings).where(eq(postings.id, app.postingId)).limit(1)
       : Promise.resolve([]),
+    db.select().from(profile).limit(1),
   ]);
+
+  const resumeName = allResumes.find((r) => r.id === app.resumeId)?.name ?? null;
 
   return (
     <>
@@ -99,6 +102,7 @@ export default async function ApplicationDetail({ params }: { params: Promise<{ 
             roleTitle: app.roleTitle,
             location: app.location,
             mode: app.mode,
+            autoApplyApprovedAt: app.autoApplyApprovedAt?.toISOString() ?? null,
             stage: app.stage as Stage,
             notes: app.notes,
             resumeId: app.resumeId,
@@ -113,6 +117,11 @@ export default async function ApplicationDetail({ params }: { params: Promise<{ 
               recommended: "manual" | "assist";
               reasons: string[];
             } | null,
+            autoApply: {
+              profile: (prof?.data ?? {}) as Record<string, string>,
+              drafts: app.drafts ?? {},
+              resumeName,
+            },
           }}
         />
       </div>

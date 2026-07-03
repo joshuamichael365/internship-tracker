@@ -1,9 +1,10 @@
 /**
  * Form filler. Injected on demand (activeTab) — never runs without a click.
  * Green outline = filled from your data. Orange outline = found but not
- * confidently fillable; review it yourself. Never touches submit buttons.
+ * confidently fillable; review it yourself. In Assist mode this never touches
+ * submit buttons; only __trackerAutoApply submits, and only after opt-in.
  */
-window.__trackerFill = function fill(profile, drafts, coverLetterB64) {
+function trackerFillCore(profile, drafts, coverLetterB64) {
   const FILLED = "2px solid #34c759";
   const REVIEW = "2px solid #ff9f0a";
   let filled = 0;
@@ -129,4 +130,49 @@ window.__trackerFill = function fill(profile, drafts, coverLetterB64) {
   }
 
   return { filled, answers, unfilled, coverLetterAttached };
+}
+
+// Assist entry point: fill only, never submit.
+window.__trackerFill = trackerFillCore;
+
+/** True if the page shows a CAPTCHA / bot-check that would block a submit. */
+function trackerDetectBlocker() {
+  const BLOCKER_SEL =
+    'iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="turnstile"],' +
+    '.g-recaptcha, .h-captcha, .cf-turnstile, #cf-challenge-running, [class*="cf-challenge"]';
+  if (document.querySelector(BLOCKER_SEL)) return "CAPTCHA or bot-check on the page";
+  if (/verify you are human/i.test(document.body?.innerText || "")) {
+    return "human-verification challenge on the page";
+  }
+  return null;
+}
+
+/**
+ * Full Auto-Apply entry point (opt-in only). Detects blockers FIRST and refuses
+ * to touch the form if present; fills; refuses to submit if required fields are
+ * unfilled; otherwise clicks the submit control once and reports.
+ */
+window.__trackerAutoApply = function autoApply(profile, drafts, coverLetterB64) {
+  const blocker = trackerDetectBlocker();
+  if (blocker) return { outcome: "blocked", detail: blocker };
+
+  const result = trackerFillCore(profile, drafts, coverLetterB64);
+  if (result.unfilled > 0) return { outcome: "incomplete", ...result };
+
+  // Prefer a real submit control; fall back to a button whose text reads like one.
+  const visible = (el) => el && el.offsetParent !== null && !el.disabled;
+  let submit = [...document.querySelectorAll('button[type="submit"], input[type="submit"]')].find(
+    visible,
+  );
+  if (!submit) {
+    submit = [...document.querySelectorAll("button")].find(
+      (b) => visible(b) && /^(submit|apply|send application)/i.test((b.textContent || "").trim()),
+    );
+  }
+  if (!submit) return { outcome: "failed", detail: "no submit button found" };
+
+  submit.click();
+  return new Promise((resolve) => {
+    setTimeout(() => resolve({ outcome: "submitted", ...result }), 2500);
+  });
 };
