@@ -3,7 +3,7 @@
   "name": "Internship Tracker Assist",
   "version": "0.1.0",
   "description": "Fills application forms from your Internship Tracker profile and reviewed drafts. You always review and submit yourself.",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": ["activeTab", "scripting", "storage", "tabs"],
   "action": {
     "default_popup": "popup.html",
     "default_title": "Internship Tracker Assist"
