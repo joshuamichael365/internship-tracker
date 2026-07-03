@@ -13,15 +13,24 @@ async function init() {
     return;
   }
 
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.url?.startsWith("http")) {
-    render(`<p>Open a job application page, then click here.</p>`);
+  const version = chrome.runtime.getManifest().version;
+  let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.url && !tab?.pendingUrl) {
+    [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  }
+  const pageUrl = tab?.url || tab?.pendingUrl || "";
+  if (!pageUrl.startsWith("http")) {
+    render(
+      pageUrl
+        ? `<p>This is a browser page (<code>${pageUrl.split(":")[0]}://…</code>), not a website. Switch to a normal webpage tab, then click here.</p><p style="color:#a1a1a6">v${version}</p>`
+        : `<p><b>Chrome didn't share this tab's address.</b></p><p>Reload the extension on chrome://extensions (↻ on the card), then try again from a normal webpage.</p><p style="color:#a1a1a6">v${version} · debug: ${tab ? "tab found, url hidden" : "no active tab"}</p>`,
+    );
     return;
   }
 
   let data;
   try {
-    const res = await fetch(`${appUrl}/api/assist/packet?url=${encodeURIComponent(tab.url)}`, {
+    const res = await fetch(`${appUrl}/api/assist/packet?url=${encodeURIComponent(pageUrl)}`, {
       headers: { authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
