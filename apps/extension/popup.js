@@ -117,6 +117,38 @@ async function init() {
     } catch {}
   }
 
+  // Asks the backend to semantically map each pending choice's stored answer
+  // to one of the portal's options, then applies the resolutions in the page.
+  // Returns {matched, unresolved, stillUnfilled} — stillUnfilled only counts
+  // required groups the model couldn't confidently resolve.
+  async function resolvePendingChoices(pendingChoices) {
+    const resolutions = await Promise.all(
+      pendingChoices.map(async (p) => {
+        try {
+          const res = await fetch(`${appUrl}/api/assist/match-option`, {
+            method: "POST",
+            headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+            body: JSON.stringify({ question: p.question, options: p.options, storedAnswer: p.storedAnswer }),
+          });
+          if (!res.ok) return { pendingId: p.pendingId, index: null };
+          const body = await res.json();
+          return { pendingId: p.pendingId, index: typeof body.index === "number" ? body.index : null };
+        } catch {
+          return { pendingId: p.pendingId, index: null };
+        }
+      }),
+    );
+
+    const [res] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (resolutions) => window.__trackerResolvePending(resolutions),
+      args: [resolutions],
+    });
+    const r = res?.result || { resolved: 0, stillUnfilled: 0 };
+    const matched = resolutions.filter((x) => x.index != null).length;
+    return { matched, unresolved: pendingChoices.length - matched, stillUnfilled: r.stillUnfilled };
+  }
+
   if (canFill) {
     document.getElementById("fill").onclick = async () => {
       const coverLetterB64 = await fetchCoverLetterB64();
@@ -132,6 +164,17 @@ async function init() {
         args: [data.profile, m.drafts || {}, coverLetterB64, resumeB64, resumeFilename],
       });
       const r = res?.result;
+      void injection;
+
+      let aiNote = "";
+      if (r?.pendingChoices?.length) {
+        result().textContent = "Checking a few answers with AI…";
+        const { matched, unresolved } = await resolvePendingChoices(r.pendingChoices);
+        aiNote =
+          (matched ? `\n+ ${matched} matched by AI` : "") +
+          (unresolved ? `, ${unresolved} still need you` : matched ? "" : "");
+      }
+
       result().textContent = r
         ? `Filled ${r.filled} field(s)` +
           (r.answers ? `, ${r.answers} answer(s)` : "") +
@@ -139,9 +182,9 @@ async function init() {
           (r.resumeAttached ? ", resume attached" : "") +
           (r.choices ? `, ${r.choices} choice(s)` : "") +
           (r.unfilled > 0 ? `\n${r.unfilled} field(s) highlighted orange need your attention.` : "") +
+          aiNote +
           `\n\nReview everything, then submit yourself.`
         : "Fill script didn't report back — check the page.";
-      void injection;
     };
     return;
   }
@@ -153,7 +196,7 @@ async function init() {
     const coverLetterB64 = await fetchCoverLetterB64();
     const { resumeB64, resumeFilename } = await fetchResumeB64();
 
-    async function runOnce() {
+    async function runFill() {
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
       const [res] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
@@ -162,6 +205,34 @@ async function init() {
         args: [data.profile, m.drafts || {}, coverLetterB64, resumeB64, resumeFilename],
       });
       return res?.result || { outcome: "failed", detail: "auto-apply script didn't report back" };
+    }
+
+    async function runFinish() {
+      const [res] = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => window.__trackerFinishAutoApply(),
+      });
+      return res?.result || { outcome: "failed", detail: "auto-apply script didn't report back" };
+    }
+
+    // Runs one attempt end-to-end: fill, resolve any pending choice
+    // questions with AI, then finish (verify + submit). A "blocked" outcome
+    // from either stage is surfaced to the caller so it can feed the same
+    // retry/backoff loop.
+    async function runAttempt() {
+      let r = await runFill();
+      if (r.outcome === "pending") {
+        result().textContent = "Checking a few answers with AI…";
+        const { matched, unresolved, stillUnfilled } = await resolvePendingChoices(r.pendingChoices);
+        void matched;
+        void unresolved;
+        if (stillUnfilled > 0) {
+          return { outcome: "incomplete", unfilled: stillUnfilled };
+        }
+        result().textContent = "Auto-applying…";
+        r = await runFinish();
+      }
+      return r;
     }
 
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -177,7 +248,7 @@ async function init() {
       } else {
         result().textContent = "Auto-applying…";
       }
-      r = await runOnce();
+      r = await runAttempt();
       if (r.outcome !== "blocked") break;
     }
 

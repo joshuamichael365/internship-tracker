@@ -4,6 +4,18 @@
  * confidently fillable; review it yourself. In Assist mode this never touches
  * submit buttons; only __trackerAutoApply submits, and only after opt-in.
  */
+// Registry of choice groups whose literal match failed, keyed by pendingId.
+// Kept on window (not a closure var) because each fill/resolve step is a
+// separate chrome.scripting.executeScript() call into the page — a fresh
+// script injection with no memory of prior closures. Elements are also
+// tagged with a data-tracker-pending="N" attribute so they can be found even
+// if the DOM has re-rendered the group between calls.
+window.__trackerPending = window.__trackerPending || new Map();
+window.__trackerPendingSeq = window.__trackerPendingSeq || 0;
+// Count of required choice groups still outlined REVIEW after resolution —
+// __trackerFinishAutoApply checks this before allowing a submit.
+window.__trackerUnresolvedRequired = window.__trackerUnresolvedRequired || 0;
+
 function trackerFillCore(profile, drafts, coverLetterB64, resumeB64, resumeFilename) {
   const FILLED = "2px solid #34c759";
   const REVIEW = "2px solid #ff9f0a";
@@ -13,6 +25,7 @@ function trackerFillCore(profile, drafts, coverLetterB64, resumeB64, resumeFilen
   let choices = 0;
   let coverLetterAttached = false;
   let resumeAttached = false;
+  const pendingChoices = [];
 
   const name = (profile.fullName || "").trim();
   const [firstName, ...rest] = name.split(/\s+/);
@@ -229,15 +242,43 @@ function trackerFillCore(profile, drafts, coverLetterB64, resumeB64, resumeFilen
 
   function findMatchingOption(options, answer) {
     const target = answer.trim().toLowerCase();
+    // Short answers (e.g. "Yes"/"No") must match on a word boundary or
+    // equality/starts-with — never a bare substring, which would let "No"
+    // match inside "Not currently enrolled". Longer answers keep the more
+    // permissive contains-matching, since they're specific enough already.
+    if (target.length <= 4) {
+      const boundary = new RegExp(`(^|\\W)${target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\W|$)`);
+      return options.find((o) => {
+        const t = optionLabelText(o).toLowerCase();
+        return t === target || t.startsWith(target) || boundary.test(t);
+      });
+    }
     return options.find((o) => {
       const t = optionLabelText(o).toLowerCase();
-      return t === target || t.startsWith(target);
+      return t === target || t.startsWith(target) || t.includes(target);
     });
   }
 
   function isYesNoGroup(options) {
     const texts = options.map((o) => optionLabelText(o).toLowerCase());
     return texts.some((t) => t === "yes") && texts.some((t) => t === "no");
+  }
+
+  // Records a choice group whose literal match failed, so the popup can ask
+  // the backend to semantically resolve it. `elements` are the actual option
+  // nodes (radio/checkbox inputs, or the single <select> element) — tagged
+  // with data-tracker-pending so __trackerResolvePending can find them again
+  // even across a fresh script injection.
+  function recordPending(kind, container, qText, answer, options, elements, required) {
+    const pendingId = `p${window.__trackerPendingSeq++}`;
+    elements.forEach((el) => el.setAttribute("data-tracker-pending", pendingId));
+    const optionTexts =
+      kind === "select"
+        ? [...elements[0].options].map((o) => o.textContent.trim())
+        : options.map((o) => optionLabelText(o));
+    window.__trackerPending.set(pendingId, { kind, container, elements, required });
+    pendingChoices.push({ kind, question: qText, storedAnswer: answer, options: optionTexts, pendingId, required });
+    if (required) window.__trackerUnresolvedRequired++;
   }
 
   // Radio groups (by name).
@@ -270,6 +311,10 @@ function trackerFillCore(profile, drafts, coverLetterB64, resumeB64, resumeFilen
           choices++;
           continue;
         }
+        // Rule matched the question but no option matched the stored answer —
+        // defer to semantic resolution instead of giving up immediately.
+        recordPending("radio", container, qText, answer, options, options, isRequired(qText, container));
+        continue;
       }
     }
     if (isRequired(qText, container)) {
@@ -307,6 +352,8 @@ function trackerFillCore(profile, drafts, coverLetterB64, resumeB64, resumeFilen
           choices++;
           continue;
         }
+        recordPending("checkbox", container, qText, answer, options, options, isRequired(qText, container));
+        continue;
       }
     }
     if (isRequired(qText, container)) {
@@ -323,8 +370,19 @@ function trackerFillCore(profile, drafts, coverLetterB64, resumeB64, resumeFilen
     const label = labelFor(el);
     const rule = ANSWER_RULES.find(([re, v]) => v && re.test(label));
     if (rule) {
-      const answer = rule[1].trim().toLowerCase();
-      const option = [...el.options].find((o) => o.textContent.trim().toLowerCase().includes(answer));
+      const rawAnswer = rule[1];
+      const answer = rawAnswer.trim().toLowerCase();
+      const optionEls = [...el.options];
+      let option;
+      if (answer.length <= 4) {
+        const boundary = new RegExp(`(^|\\W)${answer.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\W|$)`);
+        option = optionEls.find((o) => {
+          const t = o.textContent.trim().toLowerCase();
+          return t === answer || t.startsWith(answer) || boundary.test(t);
+        });
+      } else {
+        option = optionEls.find((o) => o.textContent.trim().toLowerCase().includes(answer));
+      }
       if (option) {
         const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set;
         setter.call(el, option.value);
@@ -333,6 +391,8 @@ function trackerFillCore(profile, drafts, coverLetterB64, resumeB64, resumeFilen
         choices++;
         continue;
       }
+      recordPending("select", el, label, rawAnswer, optionEls, [el], isRequired(label, el));
+      continue;
     }
     if (isRequired(label, el)) {
       el.style.outline = REVIEW;
@@ -340,11 +400,85 @@ function trackerFillCore(profile, drafts, coverLetterB64, resumeB64, resumeFilen
     }
   }
 
-  return { filled, answers, unfilled, choices, coverLetterAttached, resumeAttached };
+  return { filled, answers, unfilled, choices, coverLetterAttached, resumeAttached, pendingChoices };
 }
 
 // Assist entry point: fill only, never submit.
 window.__trackerFill = trackerFillCore;
+
+/**
+ * Applies semantic-match resolutions from the backend to previously-recorded
+ * pending choice groups. `resolutions` is [{pendingId, index|null}]. index !=
+ * null clicks/selects that option using the same mechanics as the literal
+ * path (real click for radio/checkbox, native setter + change for selects);
+ * index null leaves/re-marks the group REVIEW orange. Returns
+ * {resolved, stillUnfilled} where stillUnfilled only counts REQUIRED groups
+ * that remain unresolved.
+ */
+window.__trackerResolvePending = function trackerResolvePending(resolutions) {
+  const FILLED = "2px solid #34c759";
+  const REVIEW = "2px solid #ff9f0a";
+  let resolved = 0;
+  let stillUnfilled = 0;
+
+  function outlineGroup(container, style) {
+    (container?.querySelectorAll ? container.querySelectorAll("label") : []).forEach((l) => {
+      l.style.outline = style;
+    });
+    if (container?.style) container.style.outline = style;
+  }
+
+  for (const { pendingId, index } of resolutions || []) {
+    const pending = window.__trackerPending.get(pendingId);
+    if (!pending) continue;
+    const { kind, container, elements, required } = pending;
+
+    // Elements may have been detached/re-rendered; fall back to the DOM
+    // attribute lookup if the held reference is stale.
+    const liveElements = elements.filter((el) => el.isConnected);
+    const els = liveElements.length
+      ? liveElements
+      : [...document.querySelectorAll(`[data-tracker-pending="${pendingId}"]`)];
+
+    if (index != null && els.length) {
+      if (kind === "select") {
+        const el = els[0];
+        const option = [...el.options][index];
+        if (option) {
+          const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set;
+          setter.call(el, option.value);
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+          el.style.outline = FILLED;
+          resolved++;
+          if (required) window.__trackerUnresolvedRequired--;
+          window.__trackerPending.delete(pendingId);
+          continue;
+        }
+      } else {
+        const target = els[index];
+        if (target) {
+          target.click();
+          outlineGroup(container, FILLED);
+          resolved++;
+          if (required) window.__trackerUnresolvedRequired--;
+          window.__trackerPending.delete(pendingId);
+          continue;
+        }
+      }
+    }
+
+    // No confident match (index null, out of range, or elements gone) —
+    // leave it for the human.
+    if (kind === "select" && els[0]) {
+      els[0].style.outline = REVIEW;
+    } else {
+      outlineGroup(container, REVIEW);
+    }
+    if (required) stillUnfilled++;
+  }
+
+  return { resolved, stillUnfilled };
+};
 
 /** True if the page shows a CAPTCHA / bot-check that would block a submit. */
 function trackerDetectBlocker() {
@@ -358,19 +492,8 @@ function trackerDetectBlocker() {
   return null;
 }
 
-/**
- * Full Auto-Apply entry point (opt-in only). Detects blockers FIRST and refuses
- * to touch the form if present; fills; refuses to submit if required fields are
- * unfilled; otherwise clicks the submit control once and reports.
- */
-window.__trackerAutoApply = function autoApply(profile, drafts, coverLetterB64, resumeB64, resumeFilename) {
-  const blocker = trackerDetectBlocker();
-  if (blocker) return { outcome: "blocked", detail: blocker };
-
-  const result = trackerFillCore(profile, drafts, coverLetterB64, resumeB64, resumeFilename);
-  if (result.unfilled > 0) return { outcome: "incomplete", ...result };
-
-  // Prefer a real submit control; fall back to a button whose text reads like one.
+/** Finds a real submit control, falling back to a button that reads like one. */
+function trackerFindSubmit() {
   const visible = (el) => el && el.offsetParent !== null && !el.disabled;
   let submit = [...document.querySelectorAll('button[type="submit"], input[type="submit"]')].find(
     visible,
@@ -380,10 +503,60 @@ window.__trackerAutoApply = function autoApply(profile, drafts, coverLetterB64, 
       (b) => visible(b) && /^(submit|apply|send application)/i.test((b.textContent || "").trim()),
     );
   }
+  return submit || null;
+}
+
+/**
+ * Full Auto-Apply entry point (opt-in only). Detects blockers FIRST and refuses
+ * to touch the form if present, then fills. If any choice questions need
+ * semantic resolution (pendingChoices), it stops here and hands control back
+ * to the popup — it must NOT submit until those are resolved. Otherwise, if
+ * required fields are still unfilled, it downgrades to Assist behavior.
+ */
+window.__trackerAutoApply = function autoApply(profile, drafts, coverLetterB64, resumeB64, resumeFilename) {
+  const blocker = trackerDetectBlocker();
+  if (blocker) return { outcome: "blocked", detail: blocker };
+
+  // Fresh fill pass — reset pending state so stale entries from a prior
+  // attempt on this page don't linger.
+  window.__trackerPending = new Map();
+  window.__trackerUnresolvedRequired = 0;
+
+  const result = trackerFillCore(profile, drafts, coverLetterB64, resumeB64, resumeFilename);
+
+  if (result.pendingChoices && result.pendingChoices.length) {
+    return { outcome: "pending", ...result };
+  }
+  if (result.unfilled > 0) return { outcome: "incomplete", ...result };
+
+  const submit = trackerFindSubmit();
   if (!submit) return { outcome: "failed", detail: "no submit button found" };
 
   submit.click();
   return new Promise((resolve) => {
     setTimeout(() => resolve({ outcome: "submitted", ...result }), 2500);
+  });
+};
+
+/**
+ * Called after the popup has resolved all pendingChoices via
+ * __trackerResolvePending. Re-checks blockers (the page may have changed),
+ * verifies no required choice group is still outlined REVIEW, then submits
+ * exactly like __trackerAutoApply's tail end used to.
+ */
+window.__trackerFinishAutoApply = function trackerFinishAutoApply() {
+  const blocker = trackerDetectBlocker();
+  if (blocker) return { outcome: "blocked", detail: blocker };
+
+  if (window.__trackerUnresolvedRequired > 0) {
+    return { outcome: "failed", detail: "unfilled required fields" };
+  }
+
+  const submit = trackerFindSubmit();
+  if (!submit) return { outcome: "failed", detail: "no submit button found" };
+
+  submit.click();
+  return new Promise((resolve) => {
+    setTimeout(() => resolve({ outcome: "submitted" }), 2500);
   });
 };
