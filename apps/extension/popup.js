@@ -90,6 +90,23 @@ async function init() {
     return null;
   }
 
+  // Same idea for the resume — also read back the filename the server picked.
+  async function fetchResumeB64() {
+    if (!m.resumePdfUrl) return { resumeB64: null, resumeFilename: null };
+    try {
+      const res = await fetch(`${appUrl}${m.resumePdfUrl}`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const buf = await res.arrayBuffer();
+        const resumeB64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+        const resumeFilename = res.headers.get("x-filename") || m.resumeFilename || "Resume.pdf";
+        return { resumeB64, resumeFilename };
+      }
+    } catch {}
+    return { resumeB64: null, resumeFilename: null };
+  }
+
   async function report(event, detail) {
     try {
       await fetch(`${appUrl}/api/assist/report`, {
@@ -103,20 +120,24 @@ async function init() {
   if (canFill) {
     document.getElementById("fill").onclick = async () => {
       const coverLetterB64 = await fetchCoverLetterB64();
+      const { resumeB64, resumeFilename } = await fetchResumeB64();
       const [injection] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         files: ["content.js"],
       });
       const [res] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        func: (profile, drafts, pdfB64) => window.__trackerFill(profile, drafts, pdfB64),
-        args: [data.profile, m.drafts || {}, coverLetterB64],
+        func: (profile, drafts, pdfB64, resumeB64, resumeFilename) =>
+          window.__trackerFill(profile, drafts, pdfB64, resumeB64, resumeFilename),
+        args: [data.profile, m.drafts || {}, coverLetterB64, resumeB64, resumeFilename],
       });
       const r = res?.result;
       result().textContent = r
         ? `Filled ${r.filled} field(s)` +
           (r.answers ? `, ${r.answers} answer(s)` : "") +
           (r.coverLetterAttached ? ", cover letter attached" : "") +
+          (r.resumeAttached ? ", resume attached" : "") +
+          (r.choices ? `, ${r.choices} choice(s)` : "") +
           (r.unfilled > 0 ? `\n${r.unfilled} field(s) highlighted orange need your attention.` : "") +
           `\n\nReview everything, then submit yourself.`
         : "Fill script didn't report back — check the page.";
@@ -130,13 +151,15 @@ async function init() {
   document.getElementById("auto").onclick = async () => {
     document.getElementById("auto").disabled = true;
     const coverLetterB64 = await fetchCoverLetterB64();
+    const { resumeB64, resumeFilename } = await fetchResumeB64();
 
     async function runOnce() {
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
       const [res] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        func: (profile, drafts, pdfB64) => window.__trackerAutoApply(profile, drafts, pdfB64),
-        args: [data.profile, m.drafts || {}, coverLetterB64],
+        func: (profile, drafts, pdfB64, resumeB64, resumeFilename) =>
+          window.__trackerAutoApply(profile, drafts, pdfB64, resumeB64, resumeFilename),
+        args: [data.profile, m.drafts || {}, coverLetterB64, resumeB64, resumeFilename],
       });
       return res?.result || { outcome: "failed", detail: "auto-apply script didn't report back" };
     }

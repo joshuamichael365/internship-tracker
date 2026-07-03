@@ -12,6 +12,7 @@ export const ASSIST_CORS = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, POST, OPTIONS",
   "access-control-allow-headers": "authorization",
+  "access-control-expose-headers": "x-filename",
   "access-control-max-age": "86400",
 };
 

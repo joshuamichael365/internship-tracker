@@ -1,5 +1,7 @@
+import path from "node:path";
 import { NextResponse } from "next/server";
 import { applications, db, desc, documents, eq, profile } from "@tracker/db";
+import { resolveResumeForApplication, resumeFilename } from "@/lib/resolve-resume";
 import { ASSIST_CORS, assistAuthorized, assistPreflight } from "@/lib/extension-auth";
 
 /** The Chrome extension's data source — bearer-token auth, session-free. */
@@ -42,6 +44,7 @@ export async function GET(req: Request) {
     .where(eq(documents.applicationId, match.id))
     .orderBy(desc(documents.createdAt));
   const coverLetterDoc = docs.find((d) => d.kind === "cover_letter");
+  const resume = await resolveResumeForApplication(match.resumeId);
 
   return NextResponse.json(
     {
@@ -53,6 +56,8 @@ export async function GET(req: Request) {
         drafts: match.drafts ?? {},
         autoApply: { approved: !!match.autoApplyApprovedAt },
         coverLetterPdfUrl: coverLetterDoc ? `/api/assist/document/${coverLetterDoc.id}` : null,
+        resumePdfUrl: resume ? `/api/assist/resume?applicationId=${match.id}` : null,
+        resumeFilename: resume ? resumeFilename(resume) : null,
       },
       profile: prof?.data ?? {},
     },

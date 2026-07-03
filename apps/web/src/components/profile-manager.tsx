@@ -20,6 +20,36 @@ const PROFILE_FIELDS: { key: string; label: string; placeholder?: string; span2?
   { key: "workAuth", label: "Work authorization", placeholder: "US citizen / F-1 OPT / …" },
 ];
 
+const YES_NO_OPTIONS = ["", "Yes", "No"];
+
+const APPLICATION_ANSWER_FIELDS: {
+  key: string;
+  label: string;
+  placeholder?: string;
+  type: "text" | "select";
+}[] = [
+  { key: "pronouns", label: "Pronouns", placeholder: "e.g. he/him", type: "text" },
+  { key: "requiresSponsorship", label: "Requires sponsorship", type: "select" },
+  { key: "authorizedToWork", label: "Authorized to work", type: "select" },
+  { key: "currentlyEnrolled", label: "Currently enrolled", type: "select" },
+  { key: "willingToRelocate", label: "Willing to relocate", type: "select" },
+  { key: "gender", label: "Gender", type: "text" },
+  { key: "raceEthnicity", label: "Race / ethnicity", type: "text" },
+  {
+    key: "veteranStatus",
+    label: "Veteran status",
+    placeholder: "I am not a protected veteran",
+    type: "text",
+  },
+  {
+    key: "disabilityStatus",
+    label: "Disability status",
+    placeholder: "No, I do not have a disability",
+    type: "text",
+  },
+  { key: "howDidYouHear", label: "How did you hear about us", placeholder: "Company careers page", type: "text" },
+];
+
 export function ResumeManager({
   resumes,
 }: {
@@ -124,6 +154,45 @@ export function ProfileForm({ initial }: { initial: Record<string, string> }) {
               placeholder={f.placeholder}
               className="rounded-lg border border-separator bg-surface-secondary px-3 py-2 text-[14px] font-normal"
             />
+          </label>
+        ))}
+      </div>
+
+      <h3 className="mt-6 text-[14px] font-semibold">Application answers</h3>
+      <p className="mt-1 text-[12px] text-tertiary">
+        Used to answer the standard eligibility and demographic questions portals ask.
+        Demographic fields are optional — leave blank to always answer those yourself.
+      </p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {APPLICATION_ANSWER_FIELDS.map((f) => (
+          <label key={f.key} className="grid gap-1 text-[13px] font-medium">
+            {f.label}
+            {f.type === "select" ? (
+              <select
+                value={data[f.key] ?? ""}
+                onChange={(e) => {
+                  setData({ ...data, [f.key]: e.target.value });
+                  setSaved(false);
+                }}
+                className="rounded-lg border border-separator bg-surface-secondary px-3 py-2 text-[14px] font-normal"
+              >
+                {YES_NO_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt === "" ? "—" : opt}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={data[f.key] ?? ""}
+                onChange={(e) => {
+                  setData({ ...data, [f.key]: e.target.value });
+                  setSaved(false);
+                }}
+                placeholder={f.placeholder}
+                className="rounded-lg border border-separator bg-surface-secondary px-3 py-2 text-[14px] font-normal"
+              />
+            )}
           </label>
         ))}
       </div>
