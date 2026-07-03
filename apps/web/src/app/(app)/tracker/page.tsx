@@ -19,6 +19,7 @@ export default async function TrackerPage() {
     company: a.company,
     roleTitle: a.roleTitle,
     location: a.location,
+    url: a.url,
     mode: a.mode,
     stage: a.stage as Stage,
     appliedAt: a.appliedAt?.toISOString() ?? null,

@@ -4,6 +4,7 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import { applications, db, eq, postings, profile, reminders, resumes } from "@tracker/db";
 import { ApplicationEditor } from "@/components/application-editor";
 import { AssistPanel } from "@/components/assist-panel";
+import { CompanyLogo } from "@/components/company-logo";
 import { Card, ModeBadge } from "@/components/ui";
 import type { Stage } from "@/components/tracker-board";
 import { timeAgo } from "@/lib/format";
@@ -50,16 +51,19 @@ export default async function ApplicationDetail({ params }: { params: Promise<{ 
       </Link>
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-[15px] font-medium text-secondary">{app.company}</p>
-          <h1 className="mt-0.5 text-[26px] font-bold leading-tight tracking-tight">
-            {app.roleTitle}
-          </h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-tertiary">
-            <ModeBadge mode={app.mode} />
-            {app.location && <span>{app.location}</span>}
-            <span>added {timeAgo(app.createdAt)}</span>
-            {app.appliedAt && <span>· applied {timeAgo(app.appliedAt)}</span>}
+        <div className="flex items-start gap-3.5">
+          <CompanyLogo company={app.company} url={app.url} size="lg" />
+          <div>
+            <p className="text-[15px] font-medium text-secondary">{app.company}</p>
+            <h1 className="mt-0.5 text-[26px] font-bold leading-tight tracking-tight">
+              {app.roleTitle}
+            </h1>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-tertiary">
+              <ModeBadge mode={app.mode} />
+              {app.location && <span>{app.location}</span>}
+              <span>added {timeAgo(app.createdAt)}</span>
+              {app.appliedAt && <span>· applied {timeAgo(app.appliedAt)}</span>}
+            </div>
           </div>
         </div>
         <a

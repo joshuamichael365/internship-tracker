@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Bookmark, ExternalLink, ListPlus } from "lucide-react";
 import { applications, db, eq, inArray, postings, sources } from "@tracker/db";
 import { savePostingNotes, toggleBookmark, trackPosting } from "@/app/actions/postings";
+import { CompanyLogo } from "@/components/company-logo";
 import { Card } from "@/components/ui";
 import { LOCATION_MODE_LABELS, ROLE_LABELS, timeAgo } from "@/lib/format";
 
@@ -36,7 +37,9 @@ export default async function PostingDetail({ params }: { params: Promise<{ id: 
       </Link>
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="flex items-start gap-3.5">
+          <CompanyLogo company={posting.company} url={posting.url} size="lg" />
+          <div>
           <p className="text-[15px] font-medium text-secondary">{posting.company}</p>
           <h1 className="mt-0.5 text-[26px] font-bold leading-tight tracking-tight">
             {posting.title}
@@ -53,6 +56,7 @@ export default async function PostingDetail({ params }: { params: Promise<{ id: 
               .filter(Boolean)
               .join("  ·  ")}
           </p>
+          </div>
         </div>
         <div className="flex gap-2">
           <form

@@ -1,8 +1,9 @@
-import Link from "next/link";
 import { Search } from "lucide-react";
 import { and, asc, db, desc, eq, gte, ilike, or, postings, settings, sql, type SQL } from "@tracker/db";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { PostingCard } from "@/components/posting-card";
+import { FilterBar, type FilterGroup } from "@/components/filter-bar";
+import { StaggerGrid } from "@/components/motion";
 
 export const metadata = { title: "Internships" };
 export const dynamic = "force-dynamic";
@@ -62,28 +63,6 @@ const GROUPS: { key: string; label: string; options: [string, string][] }[] = [
     ],
   },
 ];
-
-function linkFor(params: Params, key: string, value: string | null): string {
-  const next = new URLSearchParams();
-  for (const k of FILTER_KEYS) if (params[k]) next.set(k, params[k]!);
-  if (value === null) next.delete(key);
-  else next.set(key, value);
-  const qs = next.toString();
-  return qs ? `/internships?${qs}` : "/internships";
-}
-
-function Chip({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className={`rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${
-        active ? "bg-accent text-white" : "bg-surface text-secondary shadow-card hover:text-foreground"
-      }`}
-    >
-      {children}
-    </Link>
-  );
-}
 
 export default async function InternshipsPage({
   searchParams,
@@ -154,11 +133,17 @@ export default async function InternshipsPage({
   ]);
 
   const years = [...yearRows].map((r) => r.year);
-  const groups = GROUPS.map((g) =>
+  const groups: FilterGroup[] = GROUPS.map((g) =>
     g.key === "year" ? { ...g, options: years.map((y) => [y, y] as [string, string]) } : g,
   ).filter((g) => g.options.length > 0);
 
   const activeFilterCount = FILTER_KEYS.filter((k) => k !== "q" && k !== "sort" && params[k]).length;
+
+  const extraChips = [
+    { key: "saved", value: "1", label: "Saved", active: params.saved === "1" },
+    { key: "sort", value: "deadline", label: "Deadline soonest", active: params.sort === "deadline" },
+    { key: "sort", value: "company", label: "Company A–Z", active: params.sort === "company" },
+  ];
 
   return (
     <>
@@ -174,70 +159,25 @@ export default async function InternshipsPage({
             name="q"
             defaultValue={q}
             placeholder="Search company, role, or location…"
-            className="w-full rounded-xl border border-separator bg-surface py-2.5 pl-10 pr-4 text-[15px] shadow-card outline-none transition-shadow focus:shadow-raised"
+            className="w-full rounded-xl border border-separator bg-surface py-2.5 pl-10 pr-24 text-[15px] shadow-card outline-none transition-shadow focus:shadow-raised"
           />
+          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[12px] font-medium text-tertiary">
+            {rows.length}
+            {rows.length === 200 ? "+" : ""} result{rows.length === 1 ? "" : "s"}
+          </span>
           {FILTER_KEYS.filter((k) => k !== "q" && params[k]).map((k) => (
             <input key={k} type="hidden" name={k} value={params[k]} />
           ))}
         </div>
       </form>
 
-      <div className="mb-5 grid gap-2.5">
-        {groups.map((g) => (
-          <div key={g.key} className="flex flex-wrap items-center gap-1.5">
-            <span className="w-20 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-tertiary">
-              {g.label}
-            </span>
-            {g.options.map(([v, label]) => (
-              <Chip key={v} href={linkFor(params, g.key, params[g.key] === v ? null : v)} active={params[g.key] === v}>
-                {label}
-              </Chip>
-            ))}
-          </div>
-        ))}
-
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="w-20 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-tertiary">
-            More
-          </span>
-          {includeNewGrad && (
-            <>
-              <Chip
-                href={linkFor(params, "level", params.level === "internship" ? null : "internship")}
-                active={params.level === "internship"}
-              >
-                Internships
-              </Chip>
-              <Chip
-                href={linkFor(params, "level", params.level === "new_grad" ? null : "new_grad")}
-                active={params.level === "new_grad"}
-              >
-                New Grad
-              </Chip>
-            </>
-          )}
-          <Chip href={linkFor(params, "saved", params.saved === "1" ? null : "1")} active={params.saved === "1"}>
-            Saved
-          </Chip>
-          <Chip
-            href={linkFor(params, "sort", params.sort === "deadline" ? null : "deadline")}
-            active={params.sort === "deadline"}
-          >
-            Deadline soonest
-          </Chip>
-          <Chip
-            href={linkFor(params, "sort", params.sort === "company" ? null : "company")}
-            active={params.sort === "company"}
-          >
-            Company A–Z
-          </Chip>
-          {activeFilterCount > 0 && (
-            <Link href="/internships" className="ml-1 text-[13px] font-medium text-accent">
-              Clear all ({activeFilterCount})
-            </Link>
-          )}
-        </div>
-      </div>
+      <FilterBar
+        params={params}
+        groups={groups}
+        extraChips={extraChips}
+        showLevelToggle={includeNewGrad}
+        activeFilterCount={activeFilterCount}
+      />
 
       {rows.length === 0 ? (
         <EmptyState
@@ -250,11 +190,11 @@ export default async function InternshipsPage({
           }
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <StaggerGrid className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((p) => (
             <PostingCard key={p.id} posting={p} />
           ))}
-        </div>
+        </StaggerGrid>
       )}
     </>
   );

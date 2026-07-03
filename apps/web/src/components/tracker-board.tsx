@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTransition } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { updateStage } from "@/app/actions/applications";
+import { CompanyLogo } from "@/components/company-logo";
 import { ModeBadge } from "@/components/ui";
 import { timeAgo } from "@/lib/format";
 
@@ -19,11 +20,23 @@ export const STAGES = [
 
 export type Stage = (typeof STAGES)[number][0];
 
+/** Subtle tinted dot per column, matching stage semantics. */
+const STAGE_DOT: Record<Stage, string> = {
+  saved: "bg-tertiary",
+  in_progress: "bg-accent",
+  applied: "bg-success",
+  assessment: "bg-warning",
+  interviewing: "bg-grape",
+  offer: "bg-success",
+  rejected: "bg-danger",
+};
+
 export interface TrackerCard {
   id: number;
   company: string;
   roleTitle: string;
   location: string | null;
+  url?: string | null;
   mode: "manual" | "assist" | "auto" | null;
   stage: Stage;
   appliedAt: string | null;
@@ -43,11 +56,14 @@ function Card({ app }: { app: TrackerCard }) {
     <div
       className={`rounded-xl bg-surface p-3.5 shadow-card transition-opacity ${pending ? "opacity-50" : ""}`}
     >
-      <Link href={`/tracker/${app.id}`} className="block">
-        <p className="truncate text-[12px] font-medium text-secondary">{app.company}</p>
-        <p className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug">
-          {app.roleTitle}
-        </p>
+      <Link href={`/tracker/${app.id}`} className="flex items-start gap-2.5">
+        <CompanyLogo company={app.company} url={app.url} size="sm" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[12px] font-medium text-secondary">{app.company}</p>
+          <p className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug">
+            {app.roleTitle}
+          </p>
+        </div>
       </Link>
       <div className="mt-2 flex items-center justify-between gap-2">
         <ModeBadge mode={app.mode} />
@@ -92,7 +108,10 @@ export function TrackerBoard({ cards }: { cards: TrackerCard[] }) {
           return (
             <div key={stage} className="w-[260px] shrink-0">
               <div className="mb-2 flex items-center justify-between px-1">
-                <h2 className="text-[13px] font-semibold text-secondary">{label}</h2>
+                <h2 className="flex items-center gap-1.5 text-[13px] font-semibold text-secondary">
+                  <span className={`h-2 w-2 rounded-full ${STAGE_DOT[stage]}`} />
+                  {label}
+                </h2>
                 <span className="rounded-full bg-black/[0.06] px-2 py-0.5 text-[11px] font-semibold text-tertiary dark:bg-white/[0.1]">
                   {items.length}
                 </span>

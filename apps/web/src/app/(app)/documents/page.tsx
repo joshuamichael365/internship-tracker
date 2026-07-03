@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Download, FileText } from "lucide-react";
 import { applications, db, desc, documents, eq } from "@tracker/db";
+import { CompanyLogo } from "@/components/company-logo";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { timeAgo } from "@/lib/format";
 
@@ -31,6 +32,7 @@ export default async function DocumentsPage() {
       applicationId: documents.applicationId,
       company: applications.company,
       roleTitle: applications.roleTitle,
+      url: applications.url,
     })
     .from(documents)
     .leftJoin(applications, eq(documents.applicationId, applications.id))
@@ -51,7 +53,11 @@ export default async function DocumentsPage() {
           <ul className="divide-y divide-separator">
             {rows.map((d) => (
               <li key={d.id} className="flex items-center gap-3 px-4 py-3">
-                <FileText className="h-5 w-5 shrink-0 text-secondary" />
+                {d.company ? (
+                  <CompanyLogo company={d.company} url={d.url} size="sm" />
+                ) : (
+                  <FileText className="h-5 w-5 shrink-0 text-secondary" />
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[14px] font-medium">
                     {KIND_LABELS[d.kind]} — {d.company ?? "?"} · {d.roleTitle ?? ""}
