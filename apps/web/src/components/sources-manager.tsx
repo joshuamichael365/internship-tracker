@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { CircleAlert, Plus, Trash2 } from "lucide-react";
 import { addPresetSource, addSource, deleteSource, toggleSource } from "@/app/actions/sources";
+import { useToast } from "@/components/toast";
 
 const KIND_FIELDS: Record<string, { field: string; label: string; placeholder: string }[]> = {
   github_repo: [
@@ -52,6 +53,7 @@ export function SourcesManager({ sources, hasPresets }: { sources: SourceRow[]; 
   const [kind, setKind] = useState("github_repo");
   const [showForm, setShowForm] = useState(false);
   const [pending, startTransition] = useTransition();
+  const { showToast } = useToast();
 
   return (
     <div>
@@ -83,7 +85,12 @@ export function SourcesManager({ sources, hasPresets }: { sources: SourceRow[]; 
               />
             </button>
             <button
-              onClick={() => startTransition(() => deleteSource(s.id))}
+              onClick={() =>
+                startTransition(async () => {
+                  await deleteSource(s.id);
+                  showToast("Source deleted");
+                })
+              }
               aria-label={`Delete ${s.name}`}
               className="rounded-lg p-1.5 text-tertiary transition-colors hover:bg-danger/10 hover:text-danger"
             >
@@ -100,14 +107,24 @@ export function SourcesManager({ sources, hasPresets }: { sources: SourceRow[]; 
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             disabled={pending}
-            onClick={() => startTransition(() => addPresetSource("simplify"))}
+            onClick={() =>
+              startTransition(async () => {
+                await addPresetSource("simplify");
+                showToast("Source added");
+              })
+            }
             className="rounded-full bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent transition-opacity hover:opacity-80 disabled:opacity-50"
           >
             + SimplifyJobs repo
           </button>
           <button
             disabled={pending}
-            onClick={() => startTransition(() => addPresetSource("vanshb03"))}
+            onClick={() =>
+              startTransition(async () => {
+                await addPresetSource("vanshb03");
+                showToast("Source added");
+              })
+            }
             className="rounded-full bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent transition-opacity hover:opacity-80 disabled:opacity-50"
           >
             + vanshb03 repo
@@ -121,6 +138,7 @@ export function SourcesManager({ sources, hasPresets }: { sources: SourceRow[]; 
             startTransition(async () => {
               await addSource(fd);
               setShowForm(false);
+              showToast("Source added");
             });
           }}
           className="mt-4 grid gap-3 rounded-xl bg-surface-secondary p-4"

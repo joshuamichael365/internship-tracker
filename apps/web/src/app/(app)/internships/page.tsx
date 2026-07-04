@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { Search } from "lucide-react";
-import { and, asc, db, desc, eq, gte, ilike, or, postings, settings, sql, type SQL } from "@tracker/db";
+import { and, asc, count, db, desc, eq, gte, ilike, or, postings, settings, sql, type SQL } from "@tracker/db";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { PostingCard } from "@/components/posting-card";
 import { FilterBar, type FilterGroup } from "@/components/filter-bar";
@@ -11,6 +12,10 @@ export const dynamic = "force-dynamic";
 type Params = Record<string, string | undefined>;
 
 const FILTER_KEYS = ["q", "term", "year", "role", "loc", "level", "sponsor", "posted", "saved", "sort"] as const;
+
+const DEFAULT_LIMIT = 60;
+const LIMIT_STEP = 60;
+const MAX_LIMIT = 600;
 
 const GROUPS: { key: string; label: string; options: [string, string][] }[] = [
   {
@@ -120,17 +125,32 @@ export default async function InternshipsPage({
         ? [asc(postings.company)]
         : [desc(postings.firstSeenAt)];
 
-  const [rows, yearRows] = await Promise.all([
+  const requestedLimit = Number(params.limit);
+  const limit =
+    Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(Math.round(requestedLimit / LIMIT_STEP) * LIMIT_STEP || DEFAULT_LIMIT, MAX_LIMIT)
+      : DEFAULT_LIMIT;
+
+  const [rows, yearRows, [totalRow]] = await Promise.all([
     db
       .select()
       .from(postings)
       .where(and(...conditions))
       .orderBy(...orderBy)
-      .limit(200),
+      .limit(limit),
     db.execute<{ year: string }>(
       sql`select distinct right(v, 4) as year from postings, jsonb_array_elements_text(terms) t(v) where v ~ ' 20\\d\\d$' order by 1`,
     ),
+    db
+      .select({ n: count() })
+      .from(postings)
+      .where(and(...conditions)),
   ]);
+
+  const total = totalRow?.n ?? rows.length;
+  const canShowMore = rows.length === limit && limit < MAX_LIMIT && total > limit;
+  const nextLimit = Math.min(limit + LIMIT_STEP, MAX_LIMIT);
+  const remaining = Math.min(LIMIT_STEP, total - limit);
 
   const years = [...yearRows].map((r) => r.year);
   const groups: FilterGroup[] = GROUPS.map((g) =>
@@ -149,7 +169,7 @@ export default async function InternshipsPage({
     <>
       <PageHeader
         title="Internships"
-        subtitle={`${rows.length}${rows.length === 200 ? "+" : ""} open posting${rows.length === 1 ? "" : "s"} from your sources`}
+        subtitle={`${rows.length} of ${total} posting${total === 1 ? "" : "s"} from your sources`}
       />
 
       <form method="GET" className="mb-3">
@@ -162,8 +182,7 @@ export default async function InternshipsPage({
             className="w-full rounded-xl border border-separator bg-surface py-2.5 pl-10 pr-24 text-[15px] shadow-card outline-none transition-shadow focus:shadow-raised"
           />
           <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[12px] font-medium text-tertiary">
-            {rows.length}
-            {rows.length === 200 ? "+" : ""} result{rows.length === 1 ? "" : "s"}
+            {rows.length} of {total}
           </span>
           {FILTER_KEYS.filter((k) => k !== "q" && params[k]).map((k) => (
             <input key={k} type="hidden" name={k} value={params[k]} />
@@ -190,11 +209,23 @@ export default async function InternshipsPage({
           }
         />
       ) : (
-        <StaggerGrid className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {rows.map((p) => (
-            <PostingCard key={p.id} posting={p} />
-          ))}
-        </StaggerGrid>
+        <>
+          <StaggerGrid className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {rows.map((p) => (
+              <PostingCard key={p.id} posting={p} />
+            ))}
+          </StaggerGrid>
+          {canShowMore && (
+            <div className="mt-6 flex justify-center">
+              <Link
+                href={`/internships?${new URLSearchParams({ ...Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined) as [string, string][]), limit: String(nextLimit) }).toString()}`}
+                className="rounded-xl bg-surface px-4 py-2 text-[14px] font-medium text-accent shadow-card transition-shadow hover:shadow-raised"
+              >
+                Show more ({remaining} remaining)
+              </Link>
+            </div>
+          )}
+        </>
       )}
     </>
   );

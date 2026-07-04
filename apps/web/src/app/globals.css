@@ -126,3 +126,24 @@ summary:focus-visible,
 .btn-secondary:hover {
   color: var(--text);
 }
+
+/* Loading skeleton shimmer — used by app/(app)/loading.tsx placeholders. */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.skeleton {
+  border-radius: 0.75rem;
+  background: linear-gradient(
+    100deg,
+    var(--surface-secondary) 30%,
+    color-mix(in srgb, var(--surface-secondary) 40%, var(--separator)) 50%,
+    var(--surface-secondary) 70%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}

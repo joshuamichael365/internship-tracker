@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Check } from "lucide-react";
 import { updateStorageDestination } from "@/app/actions/assist";
+import { useToast } from "@/components/toast";
 
 const OPTIONS = [
   {
@@ -31,6 +32,7 @@ export function StorageSettings({
 }) {
   const [value, setValue] = useState(initial);
   const [, startTransition] = useTransition();
+  const { showToast } = useToast();
 
   return (
     <div className="grid gap-2">
@@ -39,7 +41,10 @@ export function StorageSettings({
           key={o.value}
           onClick={() => {
             setValue(o.value);
-            startTransition(() => updateStorageDestination(o.value));
+            startTransition(async () => {
+              await updateStorageDestination(o.value);
+              showToast("Storage destination updated");
+            });
           }}
           className={`rounded-xl border p-3 text-left transition-colors ${
             value === o.value

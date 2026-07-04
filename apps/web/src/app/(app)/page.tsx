@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Bell, CheckCircle2, ClipboardList, Sparkles } from "lucide-react";
+import { AlertTriangle, Bell, CheckCircle2, Circle, ClipboardList, Puzzle, Sparkles } from "lucide-react";
 import {
   and,
   applications,
@@ -11,8 +11,11 @@ import {
   inArray,
   lt,
   postings,
+  profile,
   reminders,
+  resumes,
   sql,
+  writingSamples,
 } from "@tracker/db";
 import { Card, PageHeader } from "@/components/ui";
 import { PostingCard } from "@/components/posting-card";
@@ -25,52 +28,65 @@ export default async function Dashboard() {
   const now = new Date();
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  const [[newToday], [activeApps], [dueSoon], latest, dueReminders, blocked] = await Promise.all([
-    db
-      .select({ n: count() })
-      .from(postings)
-      .where(and(eq(postings.status, "active"), gte(postings.firstSeenAt, dayAgo))),
-    db
-      .select({ n: count() })
-      .from(applications)
-      .where(inArray(applications.stage, ["saved", "in_progress", "applied", "assessment", "interviewing"])),
-    db
-      .select({ n: count() })
-      .from(reminders)
-      .where(and(eq(reminders.done, false), sql`${reminders.dueAt} < now() + interval '7 days'`)),
-    db
-      .select()
-      .from(postings)
-      .where(eq(postings.status, "active"))
-      .orderBy(desc(postings.firstSeenAt))
-      .limit(6),
-    // Reminders that are due (or overdue) and not yet done.
-    db
-      .select({
-        id: reminders.id,
-        label: reminders.label,
-        dueAt: reminders.dueAt,
-        applicationId: reminders.applicationId,
-        company: applications.company,
-        roleTitle: applications.roleTitle,
-      })
-      .from(reminders)
-      .leftJoin(applications, eq(reminders.applicationId, applications.id))
-      .where(and(eq(reminders.done, false), lt(reminders.dueAt, now)))
-      .orderBy(reminders.dueAt)
-      .limit(8),
-    // Applications whose auto-apply hit the blocker-retry ceiling.
-    db
-      .select({
-        id: applications.id,
-        company: applications.company,
-        roleTitle: applications.roleTitle,
-        blockerRetries: applications.blockerRetries,
-      })
-      .from(applications)
-      .where(gte(applications.blockerRetries, 3))
-      .limit(8),
-  ]);
+  const [[newToday], [activeApps], [dueSoon], latest, dueReminders, blocked, [prof], [sampleRow], [resumeRow]] =
+    await Promise.all([
+      db
+        .select({ n: count() })
+        .from(postings)
+        .where(and(eq(postings.status, "active"), gte(postings.firstSeenAt, dayAgo))),
+      db
+        .select({ n: count() })
+        .from(applications)
+        .where(inArray(applications.stage, ["saved", "in_progress", "applied", "assessment", "interviewing"])),
+      db
+        .select({ n: count() })
+        .from(reminders)
+        .where(and(eq(reminders.done, false), sql`${reminders.dueAt} < now() + interval '7 days'`)),
+      db
+        .select()
+        .from(postings)
+        .where(eq(postings.status, "active"))
+        .orderBy(desc(postings.firstSeenAt))
+        .limit(6),
+      // Reminders that are due (or overdue) and not yet done.
+      db
+        .select({
+          id: reminders.id,
+          label: reminders.label,
+          dueAt: reminders.dueAt,
+          applicationId: reminders.applicationId,
+          company: applications.company,
+          roleTitle: applications.roleTitle,
+        })
+        .from(reminders)
+        .leftJoin(applications, eq(reminders.applicationId, applications.id))
+        .where(and(eq(reminders.done, false), lt(reminders.dueAt, now)))
+        .orderBy(reminders.dueAt)
+        .limit(8),
+      // Applications whose auto-apply hit the blocker-retry ceiling.
+      db
+        .select({
+          id: applications.id,
+          company: applications.company,
+          roleTitle: applications.roleTitle,
+          blockerRetries: applications.blockerRetries,
+        })
+        .from(applications)
+        .where(gte(applications.blockerRetries, 3))
+        .limit(8),
+      // First-run setup checklist inputs.
+      db.select().from(profile).limit(1),
+      db.select({ n: count() }).from(writingSamples).limit(1),
+      db.select({ n: count() }).from(resumes).limit(1),
+    ]);
+
+  const profileData = (prof?.data ?? {}) as Record<string, string>;
+  const setupSteps = [
+    { key: "profile", label: "Fill your auto-fill profile", href: "/profile", done: !!profileData.fullName },
+    { key: "samples", label: "Add writing samples", href: "/profile", done: (sampleRow?.n ?? 0) > 0 },
+    { key: "resume", label: "Upload a resume", href: "/profile", done: (resumeRow?.n ?? 0) > 0 },
+  ];
+  const setupComplete = setupSteps.every((s) => s.done);
 
   const attention = [
     ...dueReminders.map((r) => ({
@@ -95,6 +111,49 @@ export default async function Dashboard() {
         title="Dashboard"
         subtitle="New postings, active applications, and upcoming deadlines at a glance"
       />
+
+      {!setupComplete && (
+        <Card className="mb-6">
+          <div className="mb-3 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-accent" />
+            <h2 className="text-[15px] font-semibold">Get set up</h2>
+          </div>
+          <ul className="grid gap-2.5">
+            {setupSteps.map((s) => (
+              <li key={s.key} className="flex items-center gap-2.5 text-[14px]">
+                {s.done ? (
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+                ) : (
+                  <Circle className="h-4 w-4 shrink-0 text-tertiary" />
+                )}
+                {s.done ? (
+                  <span className="text-secondary line-through">{s.label}</span>
+                ) : (
+                  <Link href={s.href} className="font-medium text-accent hover:underline">
+                    {s.label}
+                  </Link>
+                )}
+              </li>
+            ))}
+            <li className="flex items-center gap-2.5 text-[14px]">
+              <Circle className="h-4 w-4 shrink-0 text-tertiary" />
+              <span className="flex items-center gap-1.5 text-secondary">
+                <Puzzle className="h-3.5 w-3.5 shrink-0" />
+                Load the Chrome extension — see the{" "}
+                <a
+                  href="https://github.com/joshuamichael365/internship-tracker#readme"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-accent hover:underline"
+                >
+                  README
+                </a>
+              </span>
+            </li>
+          </ul>
+        </Card>
+      )}
+
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <Link href="/internships">
           <Card className="transition-shadow hover:shadow-raised">

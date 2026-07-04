@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { addWritingSample, deleteWritingSample } from "@/app/actions/samples";
+import { useToast } from "@/components/toast";
 
 interface Sample {
   id: number;
@@ -23,6 +24,7 @@ function SampleSet({
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const { showToast } = useToast();
 
   return (
     <div>
@@ -44,7 +46,12 @@ function SampleSet({
               <p className="mt-2 whitespace-pre-wrap text-[12px] text-secondary">{s.content}</p>
             </details>
             <button
-              onClick={() => startTransition(() => deleteWritingSample(s.id))}
+              onClick={() =>
+                startTransition(async () => {
+                  await deleteWritingSample(s.id);
+                  showToast("Sample deleted");
+                })
+              }
               aria-label={`Delete sample ${s.title}`}
               className="shrink-0 text-tertiary hover:text-danger"
             >
@@ -62,6 +69,7 @@ function SampleSet({
             startTransition(async () => {
               await addWritingSample(set, fd);
               setOpen(false);
+              showToast("Sample added");
             })
           }
           className="mt-2 grid gap-2"

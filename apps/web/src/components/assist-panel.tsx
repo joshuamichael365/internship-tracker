@@ -8,6 +8,13 @@ import {
   saveAssistDocuments,
 } from "@/app/actions/assist";
 import type { SavedDoc } from "@/lib/documents";
+import { useToast } from "@/components/toast";
+
+const DESTINATION_LABELS: Record<SavedDoc["destination"], string> = {
+  gdrive: "Google Drive",
+  local: "local download",
+  inapp: "in-app storage",
+};
 
 interface QA {
   prompt: string;
@@ -26,6 +33,7 @@ export function AssistPanel({ applicationId }: { applicationId: number }) {
   const [newPrompt, setNewPrompt] = useState("");
   const [saved, setSaved] = useState<SavedDoc[] | null>(null);
   const [pending, startTransition] = useTransition();
+  const { showToast } = useToast();
 
   const genCover = () =>
     startTransition(async () => {
@@ -53,6 +61,9 @@ export function AssistPanel({ applicationId }: { applicationId: number }) {
         answers: qas.filter((q) => q.answer.trim()).map(({ prompt, answer }) => ({ prompt, answer })),
       });
       setSaved(result);
+      if (result.length > 0) {
+        showToast(`Saved to ${DESTINATION_LABELS[result[0].destination]}`);
+      }
     });
 
   return (

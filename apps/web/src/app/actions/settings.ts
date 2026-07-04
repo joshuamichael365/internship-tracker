@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { db, settings, sql } from "@tracker/db";
+import { db, settings } from "@tracker/db";
 import type { NotificationRules } from "@tracker/shared";
 
 export interface SettingsUpdate {
@@ -24,11 +24,4 @@ export async function updateSettings(update: SettingsUpdate) {
     });
   revalidatePath("/settings");
   revalidatePath("/internships");
-}
-
-/** Used by tracker stage changes to fire the submission-confirmation receipt. */
-export async function enqueueConfirmation(applicationId: number) {
-  await db.execute(
-    sql`select graphile_worker.add_job('send_confirmation', json_build_object('applicationId', ${applicationId}::int))`,
-  );
 }

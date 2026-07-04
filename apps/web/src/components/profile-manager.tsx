@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { FileText, Star, Trash2, Upload } from "lucide-react";
 import { deleteResume, saveProfile, setDefaultResume, uploadResume } from "@/app/actions/profile";
 import { timeAgo } from "@/lib/format";
+import { useToast } from "@/components/toast";
 
 const PROFILE_FIELDS: { key: string; label: string; placeholder?: string; span2?: boolean }[] = [
   { key: "fullName", label: "Full name" },
@@ -137,7 +138,7 @@ export function ResumeManager({
 export function ProfileForm({ initial }: { initial: Record<string, string> }) {
   const [data, setData] = useState(initial);
   const [pending, startTransition] = useTransition();
-  const [saved, setSaved] = useState(false);
+  const { showToast } = useToast();
 
   return (
     <div>
@@ -149,7 +150,6 @@ export function ProfileForm({ initial }: { initial: Record<string, string> }) {
               value={data[f.key] ?? ""}
               onChange={(e) => {
                 setData({ ...data, [f.key]: e.target.value });
-                setSaved(false);
               }}
               placeholder={f.placeholder}
               className="rounded-lg border border-separator bg-surface-secondary px-3 py-2 text-[14px] font-normal"
@@ -172,7 +172,6 @@ export function ProfileForm({ initial }: { initial: Record<string, string> }) {
                 value={data[f.key] ?? ""}
                 onChange={(e) => {
                   setData({ ...data, [f.key]: e.target.value });
-                  setSaved(false);
                 }}
                 className="rounded-lg border border-separator bg-surface-secondary px-3 py-2 text-[14px] font-normal"
               >
@@ -187,7 +186,6 @@ export function ProfileForm({ initial }: { initial: Record<string, string> }) {
                 value={data[f.key] ?? ""}
                 onChange={(e) => {
                   setData({ ...data, [f.key]: e.target.value });
-                  setSaved(false);
                 }}
                 placeholder={f.placeholder}
                 className="rounded-lg border border-separator bg-surface-secondary px-3 py-2 text-[14px] font-normal"
@@ -201,12 +199,12 @@ export function ProfileForm({ initial }: { initial: Record<string, string> }) {
         onClick={() =>
           startTransition(async () => {
             await saveProfile(data);
-            setSaved(true);
+            showToast("Profile saved");
           })
         }
         className="mt-4 rounded-xl bg-accent px-4 py-2 text-[14px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
-        {saved ? "Saved ✓" : "Save profile"}
+        Save profile
       </button>
       <p className="mt-2 text-[12px] text-tertiary">
         These fields power form auto-fill in Agentic Assist — resume parsing will enrich them

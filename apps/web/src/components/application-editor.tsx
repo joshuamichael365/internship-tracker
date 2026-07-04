@@ -14,6 +14,7 @@ import {
 } from "@/app/actions/applications";
 import { STAGES, type Stage } from "@/components/tracker-board";
 import { AutoApplyOptin, type AutoApplyData } from "@/components/auto-apply-optin";
+import { useToast } from "@/components/toast";
 
 export interface EditorData {
   id: number;
@@ -64,6 +65,7 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
     location: data.location ?? "",
   });
   const [showOptin, setShowOptin] = useState(false);
+  const { showToast } = useToast();
 
   return (
     <div className="grid content-start gap-4">
@@ -282,6 +284,7 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
                 await addReminder(data.id, remLabel, remDue);
                 setRemLabel("");
                 setRemDue("");
+                showToast("Reminder added");
               })
             }
             className="rounded-lg bg-accent-soft px-3 py-1.5 text-[13px] font-medium text-accent disabled:opacity-50"
@@ -301,7 +304,12 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
           className="w-full resize-y rounded-lg border border-separator bg-surface-secondary p-3 text-[14px] outline-none focus:border-accent"
         />
         <button
-          onClick={() => startTransition(() => updateApplication(data.id, { notes }))}
+          onClick={() =>
+            startTransition(async () => {
+              await updateApplication(data.id, { notes });
+              showToast("Notes saved");
+            })
+          }
           className="mt-2 rounded-lg bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent"
         >
           Save notes

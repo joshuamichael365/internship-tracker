@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { BellRing } from "lucide-react";
 import type { NotificationRules } from "@tracker/shared";
 import { updateSettings, type SettingsUpdate } from "@/app/actions/settings";
+import { useToast } from "@/components/toast";
 
 interface Props {
   initial: {
@@ -58,6 +59,7 @@ export function NotificationSettings({ initial, vapidPublicKey }: Props) {
   const [state, setState] = useState(initial);
   const [pushStatus, setPushStatus] = useState<"unsupported" | "off" | "on" | "denied">("off");
   const [, startTransition] = useTransition();
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
@@ -72,7 +74,10 @@ export function NotificationSettings({ initial, vapidPublicKey }: Props) {
   }, []);
 
   function save(update: SettingsUpdate) {
-    startTransition(() => updateSettings(update));
+    startTransition(async () => {
+      await updateSettings(update);
+      showToast("Settings saved");
+    });
   }
 
   function patch(p: Partial<Props["initial"]>) {

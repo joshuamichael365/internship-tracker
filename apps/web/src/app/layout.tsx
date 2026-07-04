@@ -4,6 +4,16 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: { default: "Internships", template: "%s — Internships" },
   description: "Internship discovery, tracking, and application assistant",
+  manifest: "/manifest.json",
+  icons: {
+    icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Internships",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
