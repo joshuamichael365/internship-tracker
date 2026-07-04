@@ -247,3 +247,21 @@ export const modeDecisions = pgTable("mode_decisions", {
   signals: jsonb("signals").$type<Record<string, unknown>>(),
   decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Resume Studio: in-app LaTeX resumes with Tectonic compile + a Sonnet chat assistant. */
+export const latexResumes = pgTable("latex_resumes", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  source: text("source").notNull(),
+  /** uploads key of the last successful compiled PDF, e.g. latex-resumes/12.pdf */
+  compiledKey: text("compiled_key"),
+  /** Tail of the last compile's output (success or failure), for inline error display. */
+  compileLog: text("compile_log"),
+  lastCompiledAt: timestamp("last_compiled_at", { withTimezone: true }),
+  chatHistory: jsonb("chat_history")
+    .$type<{ role: "user" | "assistant"; content: string }[]>()
+    .notNull()
+    .default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
