@@ -7,12 +7,20 @@ import {
   FileEdit,
   FileText,
   LayoutGrid,
+  LogOut,
   Search,
   Settings,
   SquareKanban,
   UserRound,
 } from "lucide-react";
+import { signOutAction } from "@/app/actions/auth";
 import { ThemeToggle } from "./theme-toggle";
+
+export interface SidebarAccount {
+  name: string | null;
+  email: string | null;
+  image: string | null;
+}
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutGrid },
@@ -51,7 +59,68 @@ function NavLink({
   );
 }
 
-export function Sidebar() {
+function AccountFooter({ account, compact = false }: { account: SidebarAccount | null; compact?: boolean }) {
+  const isDev = !account;
+  const name = account?.name?.trim() || (isDev ? "Dev session" : "Signed in");
+  const email = account?.email ?? (isDev ? "AUTH_DISABLED — local preview" : "");
+
+  const avatar = account?.image ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={account.image}
+      alt=""
+      referrerPolicy="no-referrer"
+      className="h-8 w-8 shrink-0 rounded-full object-cover"
+    />
+  ) : (
+    <div
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold ${
+        isDev ? "bg-black/[0.08] text-tertiary dark:bg-white/[0.1]" : "bg-accent-soft text-accent"
+      }`}
+    >
+      <UserRound className="h-4 w-4" />
+    </div>
+  );
+
+  const signOutButton = !isDev && (
+    <form action={signOutAction}>
+      <button
+        type="submit"
+        aria-label="Sign out"
+        title="Sign out"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-tertiary transition-colors duration-150 hover:bg-black/[0.05] hover:text-danger active:scale-[0.98] dark:hover:bg-white/[0.08]"
+      >
+        <LogOut className="h-4 w-4" />
+      </button>
+    </form>
+  );
+
+  if (compact) {
+    return (
+      <div className="flex min-w-0 items-center gap-2">
+        {avatar}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[12px] font-medium">{name}</p>
+          <p className="truncate text-[10px] text-tertiary">{email}</p>
+        </div>
+        {signOutButton}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl border border-separator bg-surface-secondary p-2">
+      {avatar}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-medium">{name}</p>
+        <p className="truncate text-[11px] text-tertiary">{email}</p>
+      </div>
+      {signOutButton}
+    </div>
+  );
+}
+
+export function Sidebar({ account }: { account?: SidebarAccount | null }) {
   const pathname = usePathname();
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
@@ -70,15 +139,23 @@ export function Sidebar() {
             <NavLink key={item.href} {...item} active={isActive(item.href)} />
           ))}
         </nav>
-        <div className="px-3">
-          <ThemeToggle />
+        <div className="flex flex-col gap-3 px-1">
+          <div className="px-2">
+            <ThemeToggle />
+          </div>
+          <AccountFooter account={account ?? null} />
         </div>
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-separator bg-[var(--sidebar)] px-4 py-3 backdrop-blur-xl md:hidden">
-        <span className="text-[17px] font-semibold tracking-tight">Internships</span>
-        <ThemeToggle />
+      <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-separator bg-[var(--sidebar)] px-4 py-3 backdrop-blur-xl md:hidden">
+        <span className="shrink-0 text-[17px] font-semibold tracking-tight">Internships</span>
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+          <div className="min-w-0 max-w-[160px] flex-1">
+            <AccountFooter account={account ?? null} compact />
+          </div>
+          <ThemeToggle />
+        </div>
       </header>
       <nav className="sticky top-[49px] z-20 flex gap-1 overflow-x-auto border-b border-separator bg-[var(--sidebar)] px-3 py-2 backdrop-blur-xl md:hidden">
         {NAV.map((item) => (

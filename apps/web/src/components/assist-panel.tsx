@@ -83,7 +83,7 @@ export function AssistPanel({ applicationId }: { applicationId: number }) {
           <button
             onClick={genCover}
             disabled={pending}
-            className="rounded-lg bg-accent-soft px-3 py-1.5 text-[13px] font-medium text-accent disabled:opacity-50"
+            className="rounded-lg bg-accent-soft px-3 py-1.5 text-[13px] font-medium text-accent transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
           >
             {coverLetter ? "Regenerate" : "Generate"}
           </button>
@@ -113,7 +113,7 @@ export function AssistPanel({ applicationId }: { applicationId: number }) {
                 <button
                   onClick={() => setQas(qas.filter((_, j) => j !== i))}
                   aria-label={`Remove question ${i + 1}`}
-                  className="shrink-0 text-tertiary hover:text-danger"
+                  className="shrink-0 text-tertiary transition-colors active:scale-[0.98] hover:text-danger"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -127,7 +127,7 @@ export function AssistPanel({ applicationId }: { applicationId: number }) {
                     setQas(qas.map((q, j) => (j === i ? { ...q, answer: e.target.value } : q)))
                   }
                   rows={5}
-                  className="w-full resize-y rounded-lg bg-surface-secondary p-2.5 text-[13px] leading-relaxed outline-none"
+                  className="w-full resize-y rounded-lg border border-separator bg-surface-secondary p-2.5 text-[13px] leading-relaxed outline-none focus:border-accent"
                 />
               )}
             </div>
@@ -144,7 +144,7 @@ export function AssistPanel({ applicationId }: { applicationId: number }) {
           <button
             onClick={addPrompt}
             disabled={!newPrompt.trim() || pending}
-            className="flex items-center gap-1 rounded-lg bg-accent-soft px-3 py-1.5 text-[13px] font-medium text-accent disabled:opacity-50"
+            className="flex items-center gap-1 rounded-lg bg-accent-soft px-3 py-1.5 text-[13px] font-medium text-accent transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
           >
             <Plus className="h-3.5 w-3.5" /> Draft
           </button>
@@ -156,7 +156,7 @@ export function AssistPanel({ applicationId }: { applicationId: number }) {
         <button
           onClick={save}
           disabled={pending || (!coverLetter && qas.every((q) => !q.answer.trim()))}
-          className="rounded-xl bg-accent px-4 py-2 text-[14px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="rounded-xl bg-accent px-4 py-2 text-[14px] font-medium text-white transition-opacity active:scale-[0.98] hover:opacity-90 disabled:opacity-50 disabled:active:scale-100"
         >
           Save documents
         </button>

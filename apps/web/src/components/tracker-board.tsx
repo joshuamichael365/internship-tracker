@@ -31,6 +31,27 @@ const STAGE_DOT: Record<Stage, string> = {
   rejected: "bg-danger",
 };
 
+/** The underlying CSS variable per stage, used for color-mix tints on the column body + count pill. */
+const STAGE_VAR: Record<Stage, string> = {
+  saved: "--text-tertiary",
+  in_progress: "--accent",
+  applied: "--success",
+  assessment: "--warning",
+  interviewing: "--purple",
+  offer: "--success",
+  rejected: "--danger",
+};
+
+const STAGE_TEXT: Record<Stage, string> = {
+  saved: "text-tertiary",
+  in_progress: "text-accent",
+  applied: "text-success",
+  assessment: "text-warning",
+  interviewing: "text-grape",
+  offer: "text-success",
+  rejected: "text-danger",
+};
+
 export interface TrackerCard {
   id: number;
   company: string;
@@ -54,7 +75,7 @@ function Card({ app }: { app: TrackerCard }) {
 
   return (
     <div
-      className={`rounded-xl bg-surface p-3.5 shadow-card transition-opacity ${pending ? "opacity-50" : ""}`}
+      className={`rounded-xl bg-surface p-3.5 shadow-card transition-shadow hover:shadow-raised ${pending ? "opacity-50" : "transition-opacity"}`}
     >
       <Link href={`/tracker/${app.id}`} className="flex items-start gap-2.5">
         <CompanyLogo company={app.company} url={app.url} size="sm" />
@@ -82,7 +103,7 @@ function Card({ app }: { app: TrackerCard }) {
           onClick={() => move(-1)}
           disabled={idx === 0 || pending}
           aria-label="Move to previous stage"
-          className="rounded-lg p-1 text-tertiary transition-colors hover:bg-black/[0.05] disabled:opacity-30 dark:hover:bg-white/[0.08]"
+          className="rounded-lg p-1 text-tertiary transition-colors active:scale-[0.98] hover:bg-black/[0.05] disabled:opacity-30 disabled:active:scale-100 dark:hover:bg-white/[0.08]"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -90,7 +111,7 @@ function Card({ app }: { app: TrackerCard }) {
           onClick={() => move(1)}
           disabled={idx === STAGES.length - 1 || pending}
           aria-label="Move to next stage"
-          className="rounded-lg p-1 text-tertiary transition-colors hover:bg-black/[0.05] disabled:opacity-30 dark:hover:bg-white/[0.08]"
+          className="rounded-lg p-1 text-tertiary transition-colors active:scale-[0.98] hover:bg-black/[0.05] disabled:opacity-30 disabled:active:scale-100 dark:hover:bg-white/[0.08]"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
@@ -112,11 +133,17 @@ export function TrackerBoard({ cards }: { cards: TrackerCard[] }) {
                   <span className={`h-2 w-2 rounded-full ${STAGE_DOT[stage]}`} />
                   {label}
                 </h2>
-                <span className="rounded-full bg-black/[0.06] px-2 py-0.5 text-[11px] font-semibold text-tertiary dark:bg-white/[0.1]">
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STAGE_TEXT[stage]}`}
+                  style={{ background: `color-mix(in srgb, var(${STAGE_VAR[stage]}) 14%, transparent)` }}
+                >
                   {items.length}
                 </span>
               </div>
-              <div className="grid gap-2 rounded-2xl bg-black/[0.03] p-2 dark:bg-white/[0.04]">
+              <div
+                className="grid gap-2 rounded-2xl p-2"
+                style={{ background: `color-mix(in srgb, var(${STAGE_VAR[stage]}) 5%, var(--background))` }}
+              >
                 {items.map((app) => (
                   <Card key={app.id} app={app} />
                 ))}

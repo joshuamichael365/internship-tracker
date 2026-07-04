@@ -147,3 +147,22 @@ summary:focus-visible,
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.4s ease-in-out infinite;
 }
+
+/* Subtle ambient drift for the sign-in page's radial accent. CSS-only, no images. */
+@keyframes signin-glow {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+}
+.animate-signin-glow {
+  animation: signin-glow 8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-signin-glow {
+    animation: none;
+  }
+}

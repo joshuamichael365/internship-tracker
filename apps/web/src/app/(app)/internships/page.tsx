@@ -3,6 +3,8 @@ import { Search } from "lucide-react";
 import { and, asc, count, db, desc, eq, gte, ilike, or, postings, settings, sql, type SQL } from "@tracker/db";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { PostingCard } from "@/components/posting-card";
+import { PostingList } from "@/components/posting-list";
+import { ViewToggle } from "@/components/view-toggle";
 import { FilterBar, type FilterGroup } from "@/components/filter-bar";
 import { StaggerGrid } from "@/components/motion";
 
@@ -158,6 +160,7 @@ export default async function InternshipsPage({
   ).filter((g) => g.options.length > 0);
 
   const activeFilterCount = FILTER_KEYS.filter((k) => k !== "q" && k !== "sort" && params[k]).length;
+  const view = params.view === "list" ? "list" : "card";
 
   const extraChips = [
     { key: "saved", value: "1", label: "Saved", active: params.saved === "1" },
@@ -170,6 +173,7 @@ export default async function InternshipsPage({
       <PageHeader
         title="Internships"
         subtitle={`${rows.length} of ${total} posting${total === 1 ? "" : "s"} from your sources`}
+        actions={<ViewToggle />}
       />
 
       <form method="GET" className="mb-3">
@@ -184,9 +188,11 @@ export default async function InternshipsPage({
           <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[12px] font-medium text-tertiary">
             {rows.length} of {total}
           </span>
-          {FILTER_KEYS.filter((k) => k !== "q" && params[k]).map((k) => (
-            <input key={k} type="hidden" name={k} value={params[k]} />
-          ))}
+          {(["view", ...FILTER_KEYS] as string[])
+            .filter((k) => k !== "q" && params[k])
+            .map((k) => (
+              <input key={k} type="hidden" name={k} value={params[k]} />
+            ))}
         </div>
       </form>
 
@@ -210,11 +216,15 @@ export default async function InternshipsPage({
         />
       ) : (
         <>
-          <StaggerGrid className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {rows.map((p) => (
-              <PostingCard key={p.id} posting={p} />
-            ))}
-          </StaggerGrid>
+          {view === "list" ? (
+            <PostingList postings={rows} />
+          ) : (
+            <StaggerGrid className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {rows.map((p) => (
+                <PostingCard key={p.id} posting={p} />
+              ))}
+            </StaggerGrid>
+          )}
           {canShowMore && (
             <div className="mt-6 flex justify-center">
               <Link

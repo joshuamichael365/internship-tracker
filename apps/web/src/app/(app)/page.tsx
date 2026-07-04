@@ -17,10 +17,11 @@ import {
   sql,
   writingSamples,
 } from "@tracker/db";
+import { auth } from "@/auth";
 import { Card, PageHeader } from "@/components/ui";
 import { PostingCard } from "@/components/posting-card";
 import { StaggerGrid } from "@/components/motion";
-import { timeAgo } from "@/lib/format";
+import { greeting, timeAgo, todayLong } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +29,9 @@ export default async function Dashboard() {
   const now = new Date();
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  const [[newToday], [activeApps], [dueSoon], latest, dueReminders, blocked, [prof], [sampleRow], [resumeRow]] =
+  const [session, [newToday], [activeApps], [dueSoon], latest, dueReminders, blocked, [prof], [sampleRow], [resumeRow]] =
     await Promise.all([
+      auth(),
       db
         .select({ n: count() })
         .from(postings)
@@ -81,6 +83,8 @@ export default async function Dashboard() {
     ]);
 
   const profileData = (prof?.data ?? {}) as Record<string, string>;
+  const displayName = session?.user?.name || profileData.fullName || null;
+  const headerTitle = greeting(displayName);
   const setupSteps = [
     { key: "profile", label: "Fill your auto-fill profile", href: "/profile", done: !!profileData.fullName },
     { key: "samples", label: "Add writing samples", href: "/profile", done: (sampleRow?.n ?? 0) > 0 },
@@ -108,8 +112,8 @@ export default async function Dashboard() {
   return (
     <>
       <PageHeader
-        title="Dashboard"
-        subtitle="New postings, active applications, and upcoming deadlines at a glance"
+        title={headerTitle}
+        subtitle={headerTitle === "Dashboard" ? "New postings, active applications, and upcoming deadlines at a glance" : todayLong()}
       />
 
       {!setupComplete && (

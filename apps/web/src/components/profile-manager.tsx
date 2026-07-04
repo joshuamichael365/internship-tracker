@@ -84,7 +84,7 @@ export function ResumeManager({
                 onClick={() => startTransition(() => setDefaultResume(r.id))}
                 aria-label={`Make ${r.name} default`}
                 title="Make default"
-                className="rounded-lg p-1.5 text-tertiary transition-colors hover:bg-black/[0.04] hover:text-warning dark:hover:bg-white/[0.06]"
+                className="rounded-lg p-1.5 text-tertiary transition-colors active:scale-[0.98] hover:bg-black/[0.04] hover:text-warning dark:hover:bg-white/[0.06]"
               >
                 <Star className="h-4 w-4" />
               </button>
@@ -92,7 +92,7 @@ export function ResumeManager({
             <button
               onClick={() => startTransition(() => deleteResume(r.id))}
               aria-label={`Delete ${r.name}`}
-              className="rounded-lg p-1.5 text-tertiary transition-colors hover:bg-danger/10 hover:text-danger"
+              className="rounded-lg p-1.5 text-tertiary transition-colors active:scale-[0.98] hover:bg-danger/10 hover:text-danger"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -126,7 +126,7 @@ export function ResumeManager({
         />
         <button
           disabled={pending}
-          className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white transition-opacity active:scale-[0.98] hover:opacity-90 disabled:opacity-50 disabled:active:scale-100"
         >
           <Upload className="h-3.5 w-3.5" /> Upload
         </button>
@@ -202,7 +202,7 @@ export function ProfileForm({ initial }: { initial: Record<string, string> }) {
             showToast("Profile saved");
           })
         }
-        className="mt-4 rounded-xl bg-accent px-4 py-2 text-[14px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="mt-4 rounded-xl bg-accent px-4 py-2 text-[14px] font-medium text-white transition-opacity active:scale-[0.98] hover:opacity-90 disabled:opacity-50 disabled:active:scale-100"
       >
         Save profile
       </button>

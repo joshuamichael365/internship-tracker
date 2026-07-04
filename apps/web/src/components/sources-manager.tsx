@@ -78,7 +78,7 @@ export function SourcesManager({ sources, hasPresets }: { sources: SourceRow[]; 
               role="switch"
               aria-checked={s.enabled}
               aria-label={`${s.name} enabled`}
-              className={`relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors ${s.enabled ? "bg-success" : "bg-black/[0.15] dark:bg-white/[0.2]"}`}
+              className={`relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors active:scale-[0.98] ${s.enabled ? "bg-success" : "bg-black/[0.15] dark:bg-white/[0.2]"}`}
             >
               <span
                 className={`absolute top-[2px] h-[22px] w-[22px] rounded-full bg-white shadow-card transition-[left] ${s.enabled ? "left-[20px]" : "left-[2px]"}`}
@@ -92,7 +92,7 @@ export function SourcesManager({ sources, hasPresets }: { sources: SourceRow[]; 
                 })
               }
               aria-label={`Delete ${s.name}`}
-              className="rounded-lg p-1.5 text-tertiary transition-colors hover:bg-danger/10 hover:text-danger"
+              className="rounded-lg p-1.5 text-tertiary transition-colors active:scale-[0.98] hover:bg-danger/10 hover:text-danger"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -113,7 +113,7 @@ export function SourcesManager({ sources, hasPresets }: { sources: SourceRow[]; 
                 showToast("Source added");
               })
             }
-            className="rounded-full bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent transition-opacity hover:opacity-80 disabled:opacity-50"
+            className="rounded-full bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent transition-opacity active:scale-[0.98] hover:opacity-80 disabled:opacity-50 disabled:active:scale-100"
           >
             + SimplifyJobs repo
           </button>
@@ -125,7 +125,7 @@ export function SourcesManager({ sources, hasPresets }: { sources: SourceRow[]; 
                 showToast("Source added");
               })
             }
-            className="rounded-full bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent transition-opacity hover:opacity-80 disabled:opacity-50"
+            className="rounded-full bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent transition-opacity active:scale-[0.98] hover:opacity-80 disabled:opacity-50 disabled:active:scale-100"
           >
             + vanshb03 repo
           </button>
@@ -183,14 +183,14 @@ export function SourcesManager({ sources, hasPresets }: { sources: SourceRow[]; 
             <button
               type="submit"
               disabled={pending}
-              className="rounded-xl bg-accent px-4 py-2 text-[14px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="rounded-xl bg-accent px-4 py-2 text-[14px] font-medium text-white transition-opacity active:scale-[0.98] hover:opacity-90 disabled:opacity-50 disabled:active:scale-100"
             >
               Add source
             </button>
             <button
               type="button"
               onClick={() => setShowForm(false)}
-              className="rounded-xl px-4 py-2 text-[14px] font-medium text-secondary transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
+              className="rounded-xl px-4 py-2 text-[14px] font-medium text-secondary transition-colors active:scale-[0.98] hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
             >
               Cancel
             </button>
@@ -199,7 +199,7 @@ export function SourcesManager({ sources, hasPresets }: { sources: SourceRow[]; 
       ) : (
         <button
           onClick={() => setShowForm(true)}
-          className="mt-4 flex items-center gap-1.5 rounded-xl bg-accent-soft px-3.5 py-2 text-[14px] font-medium text-accent transition-opacity hover:opacity-80"
+          className="mt-4 flex items-center gap-1.5 rounded-xl bg-accent-soft px-3.5 py-2 text-[14px] font-medium text-accent transition-opacity active:scale-[0.98] hover:opacity-80"
         >
           <Plus className="h-4 w-4" /> Add source
         </button>

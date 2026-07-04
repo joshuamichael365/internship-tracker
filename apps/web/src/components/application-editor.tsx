@@ -159,7 +159,7 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
                   setApplicationMode(data.id, data.mode === m.value ? null : m.value),
                 );
               }}
-              className={`rounded-xl border p-3 text-left transition-colors ${
+              className={`rounded-xl border p-3 text-left transition-colors active:scale-[0.98] disabled:active:scale-100 ${
                 data.mode === m.value
                   ? "border-accent bg-accent-soft"
                   : "border-separator hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
@@ -188,7 +188,7 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
             <button
               disabled={pending}
               onClick={() => startTransition(() => setApplicationMode(data.id, null))}
-              className="font-medium text-danger hover:underline disabled:opacity-50"
+              className="font-medium text-danger transition-colors hover:underline active:scale-[0.98] disabled:active:scale-100 disabled:opacity-50"
             >
               Revoke
             </button>
@@ -256,7 +256,7 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
               <button
                 onClick={() => startTransition(() => deleteReminder(r.id))}
                 aria-label={`Delete reminder ${r.label}`}
-                className="text-tertiary hover:text-danger"
+                className="text-tertiary transition-colors active:scale-[0.98] hover:text-danger"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -287,7 +287,7 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
                 showToast("Reminder added");
               })
             }
-            className="rounded-lg bg-accent-soft px-3 py-1.5 text-[13px] font-medium text-accent disabled:opacity-50"
+            className="rounded-lg bg-accent-soft px-3 py-1.5 text-[13px] font-medium text-accent transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
           >
             Add
           </button>
@@ -310,7 +310,7 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
               showToast("Notes saved");
             })
           }
-          className="mt-2 rounded-lg bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent"
+          className="mt-2 rounded-lg bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent transition-transform active:scale-[0.98]"
         >
           Save notes
         </button>
@@ -325,7 +325,7 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
             });
           }
         }}
-        className="justify-self-start rounded-xl px-3.5 py-2 text-[13px] font-medium text-danger transition-colors hover:bg-danger/10"
+        className="justify-self-start rounded-xl px-3.5 py-2 text-[13px] font-medium text-danger transition-colors active:scale-[0.98] hover:bg-danger/10"
       >
         Delete application
       </button>

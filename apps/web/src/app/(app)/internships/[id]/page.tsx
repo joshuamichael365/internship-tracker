@@ -4,6 +4,7 @@ import { ArrowLeft, Bookmark, ExternalLink, ListPlus } from "lucide-react";
 import { applications, db, eq, inArray, postings, sources } from "@tracker/db";
 import { savePostingNotes, toggleBookmark, trackPosting } from "@/app/actions/postings";
 import { CompanyLogo } from "@/components/company-logo";
+import { RichText } from "@/components/rich-text";
 import { Card } from "@/components/ui";
 import { LOCATION_MODE_LABELS, ROLE_LABELS, timeAgo } from "@/lib/format";
 
@@ -108,9 +109,7 @@ export default async function PostingDetail({ params }: { params: Promise<{ id: 
         <Card>
           <h2 className="mb-2 text-[15px] font-semibold">Description</h2>
           {posting.description ? (
-            <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-secondary">
-              {posting.description}
-            </p>
+            <RichText text={posting.description} />
           ) : (
             <p className="text-[14px] text-tertiary">
               This source doesn&apos;t include a description — open the posting for full details.

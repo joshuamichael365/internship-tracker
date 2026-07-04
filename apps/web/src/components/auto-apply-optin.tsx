@@ -44,7 +44,7 @@ export function AutoApplyOptin({
         </p>
         <button
           onClick={onCancel}
-          className="mt-2 rounded-lg px-2.5 py-1 text-[12px] font-medium text-secondary hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+          className="mt-2 rounded-lg px-2.5 py-1 text-[12px] font-medium text-secondary transition-colors active:scale-[0.98] hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
         >
           Back
         </button>
@@ -119,13 +119,13 @@ export function AutoApplyOptin({
         <button
           disabled={!understood || pending}
           onClick={() => startTransition(() => approveAutoApply(applicationId))}
-          className="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white transition-opacity active:scale-[0.98] hover:opacity-90 disabled:opacity-50 disabled:active:scale-100"
         >
           Approve Auto-Apply for this application
         </button>
         <button
           onClick={onCancel}
-          className="rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-secondary hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+          className="rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-secondary transition-colors active:scale-[0.98] hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
         >
           Cancel
         </button>

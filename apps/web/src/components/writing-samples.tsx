@@ -53,7 +53,7 @@ function SampleSet({
                 })
               }
               aria-label={`Delete sample ${s.title}`}
-              className="shrink-0 text-tertiary hover:text-danger"
+              className="shrink-0 text-tertiary transition-colors active:scale-[0.98] hover:text-danger"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -90,14 +90,14 @@ function SampleSet({
           <div className="flex gap-2">
             <button
               disabled={pending}
-              className="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white disabled:opacity-50"
+              className="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
             >
               Add sample
             </button>
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="rounded-lg px-3.5 py-1.5 text-[13px] font-medium text-secondary"
+              className="rounded-lg px-3.5 py-1.5 text-[13px] font-medium text-secondary transition-transform active:scale-[0.98]"
             >
               Cancel
             </button>
@@ -106,7 +106,7 @@ function SampleSet({
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="mt-2 flex items-center gap-1 rounded-lg bg-accent-soft px-3 py-1.5 text-[13px] font-medium text-accent"
+          className="mt-2 flex items-center gap-1 rounded-lg bg-accent-soft px-3 py-1.5 text-[13px] font-medium text-accent transition-transform active:scale-[0.98]"
         >
           <Plus className="h-3.5 w-3.5" /> Add
         </button>

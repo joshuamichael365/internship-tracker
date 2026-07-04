@@ -68,7 +68,7 @@ export default async function TrackerPage() {
             <input name="location" className="rounded-lg border border-separator bg-surface-secondary px-3 py-2 text-[14px] font-normal" />
           </label>
           <div className="flex items-end">
-            <button className="rounded-xl bg-accent px-4 py-2 text-[14px] font-medium text-white transition-opacity hover:opacity-90">
+            <button className="rounded-xl bg-accent px-4 py-2 text-[14px] font-medium text-white transition-opacity active:scale-[0.98] hover:opacity-90">
               Add to tracker
             </button>
           </div>

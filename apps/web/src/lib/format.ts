@@ -27,3 +27,15 @@ export const LOCATION_MODE_LABELS: Record<string, string> = {
   onsite: "On-site",
   unknown: "",
 };
+
+/** Time-aware "Good morning/afternoon/evening" — falls back to "Dashboard" with no name. */
+export function greeting(name?: string | null): string {
+  const hour = new Date().getHours();
+  const part = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
+  const first = name?.trim().split(/\s+/)[0];
+  return first ? `Good ${part}, ${first}` : "Dashboard";
+}
+
+export function todayLong(): string {
+  return new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+}

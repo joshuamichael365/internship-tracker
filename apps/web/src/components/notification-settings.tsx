@@ -33,7 +33,7 @@ function Toggle({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={`relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors ${checked ? "bg-success" : "bg-black/[0.15] dark:bg-white/[0.2]"}`}
+      className={`relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors active:scale-[0.98] ${checked ? "bg-success" : "bg-black/[0.15] dark:bg-white/[0.2]"}`}
     >
       <span
         className={`absolute top-[2px] h-[22px] w-[22px] rounded-full bg-white shadow-card transition-[left] ${checked ? "left-[20px]" : "left-[2px]"}`}
@@ -134,7 +134,7 @@ export function NotificationSettings({ initial, vapidPublicKey }: Props) {
         {pushStatus === "off" && vapidPublicKey && (
           <button
             onClick={enablePush}
-            className="flex items-center gap-1.5 rounded-xl bg-accent px-3.5 py-2 text-[14px] font-medium text-white transition-opacity hover:opacity-90"
+            className="flex items-center gap-1.5 rounded-xl bg-accent px-3.5 py-2 text-[14px] font-medium text-white transition-opacity active:scale-[0.98] hover:opacity-90"
           >
             <BellRing className="h-4 w-4" /> Enable
           </button>
@@ -227,7 +227,7 @@ export function NotificationSettings({ initial, vapidPublicKey }: Props) {
             <button
               key={v}
               onClick={() => patch({ rules: { ...state.rules, roleTypes: toggleList(state.rules.roleTypes, v) } })}
-              className={`rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${
+              className={`rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors active:scale-[0.98] ${
                 state.rules.roleTypes?.includes(v)
                   ? "bg-accent text-white"
                   : "bg-black/[0.05] text-secondary dark:bg-white/[0.08]"
@@ -245,7 +245,7 @@ export function NotificationSettings({ initial, vapidPublicKey }: Props) {
             <button
               key={v}
               onClick={() => patch({ rules: { ...state.rules, locationModes: toggleList(state.rules.locationModes, v) } })}
-              className={`rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${
+              className={`rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors active:scale-[0.98] ${
                 state.rules.locationModes?.includes(v)
                   ? "bg-accent text-white"
                   : "bg-black/[0.05] text-secondary dark:bg-white/[0.08]"
