@@ -292,6 +292,18 @@ extension) is in `DEPLOYMENT.md`.
 Per-service build/start is controlled by Railpack env vars: `RAILPACK_BUILD_CMD`,
 `RAILPACK_START_CMD`. The web build command also downloads Tectonic (see below).
 
+### Branch workflow (adopted 2026-07-11, user-requested)
+Long-lived branches form a promotion chain: **`sbx` → `dev` → `qa` → `main`**.
+- `sbx` — sandbox/integration: day-to-day work (and agent output) lands here first.
+- `dev` — promoted from sbx once a piece of work is coherent and builds clean.
+- `qa` — promoted from dev for final verification passes before release.
+- `main` — **production**: Railway auto-deploys every push (unchanged). Kept as the prod branch
+  rather than a literal `prod` branch so the existing Railway wiring stays untouched.
+Promote by merging (`git merge --no-ff` from the branch below, or a GitHub PR). Only `main` has a
+deployed environment — sbx/dev/qa are verified locally (`pnpm dev`, local Postgres) unless/until
+separate Railway environments are added. Hotfixes: fix on `main`, then back-merge down the chain
+so branches never diverge.
+
 ### ⚠️ Railway lessons learned — these each cost real debugging time; heed them
 - **`railway variables --set` with complex quoted values can FAIL SILENTLY** (saves nothing while an
   old bad value stays active). This caused **3 failed deploys**. **ALWAYS read the variable back**
@@ -384,8 +396,9 @@ feedback. Match each file's existing comment density; comments explain *why*.
 
 **Commit style:** author `Joshua Michael <joshuamichael365@gmail.com>`; every AI-authored commit ends
 with a `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` trailer. Descriptive multi-line
-messages. Only push to `main` when the user asks (here, pushes are frequent and expected because
-Railway auto-deploys — but always after a clean `pnpm --filter web build`).
+messages. Work lands on `sbx` first and is promoted sbx → dev → qa → `main` (see §8 branch
+workflow); pushing `main` deploys production, so it only happens when the user asks — and always
+after a clean `pnpm --filter web build`.
 
 **Agent delegation model (the user's explicit preference):** the manager model (Fable) plans,
 reviews, and talks to the user; it delegates *implementation* to **Sonnet** subagents (Opus only for
