@@ -10,6 +10,11 @@ const KIND_FIELDS: Record<string, { field: string; label: string; placeholder: s
     { field: "repo", label: "Repository", placeholder: "owner/repo" },
     { field: "branch", label: "Branch (default: dev)", placeholder: "dev" },
     { field: "listingsPath", label: "listings.json path (optional)", placeholder: ".github/scripts/listings.json" },
+    {
+      field: "columns",
+      label: "README column map (optional, non-standard tables only)",
+      placeholder: "company=1,role=2,location=3,link=5",
+    },
   ],
   greenhouse: [{ field: "boardToken", label: "Board token", placeholder: "stripe" }],
   lever: [{ field: "site", label: "Site name", placeholder: "palantir" }],

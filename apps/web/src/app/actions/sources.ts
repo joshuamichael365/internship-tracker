@@ -5,7 +5,7 @@ import { db, eq, sources } from "@tracker/db";
 import type { SourceKind } from "@tracker/shared";
 
 const KIND_CONFIG_FIELDS: Record<SourceKind, string[]> = {
-  github_repo: ["repo", "branch", "listingsPath"],
+  github_repo: ["repo", "branch", "listingsPath", "columns"],
   greenhouse: ["boardToken"],
   lever: ["site"],
   smartrecruiters: ["company"],

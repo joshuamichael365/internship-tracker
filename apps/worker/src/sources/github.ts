@@ -6,6 +6,40 @@ interface GithubConfig {
   branch?: string;
   /** JSON listings file if the repo maintains one (SimplifyJobs does). */
   listingsPath?: string;
+  /**
+   * Override the README table column order for repos that don't follow the community-standard
+   * `Company | Role | Location | Link` layout (e.g. speedyapply puts the link in a "Posting"
+   * column at index 5). Format: "company=1,role=2,location=3,link=4" — any subset of keys, 1-based
+   * cell index counting from the leading `|`. Omitted keys keep the standard default. A field can
+   * repeat an index (e.g. "link=2" when the role cell itself embeds the apply link, as jobright-ai
+   * does). No effect on `listingsPath` repos.
+   */
+  columns?: string;
+}
+
+interface ColumnMap {
+  company: number;
+  role: number;
+  location: number;
+  link: number;
+}
+
+const DEFAULT_COLUMNS: ColumnMap = { company: 1, role: 2, location: 3, link: 4 };
+
+/** Parse the `columns` config string (see GithubConfig.columns) into a ColumnMap, defaulting
+ *  any key that's absent or malformed to the community-standard index. */
+export function parseColumnMap(spec: string | undefined): ColumnMap {
+  if (!spec) return DEFAULT_COLUMNS;
+  const map: ColumnMap = { ...DEFAULT_COLUMNS };
+  for (const pair of spec.split(",")) {
+    const [rawKey, rawValue] = pair.split("=").map((s) => s.trim());
+    const key = rawKey as keyof ColumnMap;
+    const idx = Number(rawValue);
+    if ((key === "company" || key === "role" || key === "location" || key === "link") && Number.isInteger(idx) && idx > 0) {
+      map[key] = idx;
+    }
+  }
+  return map;
 }
 
 interface SimplifyListing {
@@ -49,17 +83,23 @@ const LINK_RE = /<a[^>]+href="([^"]+)"|\[[^\]]*\]\(([^)]+)\)/;
 
 /**
  * Fallback for repos without a listings file: parse README markdown tables.
- * Expected column order: Company | Role | Location | Link | Age (the community standard).
+ * Default column order: Company | Role | Location | Link | Age (the community standard) — pass a
+ * `columns` map for repos that deviate (see GithubConfig.columns).
  * "↳" rows inherit the company above them.
  */
-function parseReadmeTable(body: string): NormalizedPosting[] {
+export function parseReadmeTable(body: string, columns: ColumnMap = DEFAULT_COLUMNS): NormalizedPosting[] {
   const out: NormalizedPosting[] = [];
   let lastCompany = "";
+  // Table must have at least enough cells to cover the highest configured column index.
+  const minCells = Math.max(columns.company, columns.role, columns.location, columns.link) + 1;
   for (const line of body.split("\n")) {
     if (!line.startsWith("|")) continue;
     const cells = line.split("|").map((c) => c.trim());
-    if (cells.length < 5) continue;
-    const [, companyCell = "", roleCell = "", locationCell = "", linkCell = ""] = cells;
+    if (cells.length < minCells) continue;
+    const companyCell = cells[columns.company] ?? "";
+    const roleCell = cells[columns.role] ?? "";
+    const locationCell = cells[columns.location] ?? "";
+    const linkCell = cells[columns.link] ?? "";
     if (/^-+$/.test(companyCell.replace(/[: ]/g, "-")) || /^company$/i.test(companyCell)) continue;
 
     let company = companyCell
@@ -68,7 +108,15 @@ function parseReadmeTable(body: string): NormalizedPosting[] {
     if (company === "↳" || company === "") company = lastCompany;
     else lastCompany = company;
 
-    const role = roleCell.replace(/<[^>]+>/g, "").trim();
+    // Role text may itself carry the apply link (e.g. jobright-ai's "Job Title" column embeds a
+    // markdown link, so `columns.link` points at the same cell as `columns.role`) — strip
+    // bold/markdown-link syntax the same way the company cell does, keeping just the anchor text,
+    // so titles never leak markdown junk.
+    const role = roleCell
+      .replace(/\*\*/g, "")
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/<[^>]+>/g, "")
+      .trim();
     const linkMatch = linkCell.match(LINK_RE);
     const url = linkMatch?.[1] || linkMatch?.[2] || "";
     if (!company || !role || !url || /🔒/.test(linkCell)) continue;
@@ -99,5 +147,5 @@ export async function pollGithubRepo(
 
   const result = await conditionalFetch(`${base}/README.md`, prevCache);
   if (result.notModified) return { result, postings: [] };
-  return { result, postings: parseReadmeTable(result.body!) };
+  return { result, postings: parseReadmeTable(result.body!, parseColumnMap(config.columns)) };
 }
