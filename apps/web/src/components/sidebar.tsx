@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Archive,
+  Camera,
   FileEdit,
   FileText,
   LayoutGrid,
@@ -26,6 +27,7 @@ const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutGrid },
   { href: "/internships", label: "Internships", icon: Search },
   { href: "/tracker", label: "Tracker", icon: SquareKanban },
+  { href: "/intake", label: "Screenshot Intake", icon: Camera },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/resume-studio", label: "Resume Studio", icon: FileEdit },
   { href: "/profile", label: "Profile", icon: UserRound },

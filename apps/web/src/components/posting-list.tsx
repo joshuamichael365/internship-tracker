@@ -67,15 +67,18 @@ function ListRow({ posting }: { posting: PostingCardData }) {
         <Bookmark className="h-4 w-4" fill={posting.bookmarked ? "currentColor" : "none"} />
       </button>
 
-      <a
-        href={posting.url}
-        target="_blank"
-        rel="noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        className="hidden shrink-0 items-center gap-1 text-[12px] font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 sm:flex"
-      >
-        Apply <ExternalLink className="h-3 w-3" />
-      </a>
+      {/* Screenshot-intake postings can have no URL (story said "link in bio") */}
+      {posting.url && (
+        <a
+          href={posting.url}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="hidden shrink-0 items-center gap-1 text-[12px] font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 sm:flex"
+        >
+          Apply <ExternalLink className="h-3 w-3" />
+        </a>
+      )}
     </div>
   );
 }

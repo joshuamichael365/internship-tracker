@@ -94,14 +94,17 @@ export default async function PostingDetail({ params }: { params: Promise<{ id: 
               </button>
             </form>
           )}
-          <a
-            href={posting.url}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-[14px] font-medium text-white transition-opacity hover:opacity-90"
-          >
-            Apply <ExternalLink className="h-4 w-4" />
-          </a>
+          {/* Screenshot-intake postings can have no URL (story said "link in bio") */}
+          {posting.url && (
+            <a
+              href={posting.url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-[14px] font-medium text-white transition-opacity hover:opacity-90"
+            >
+              Apply <ExternalLink className="h-4 w-4" />
+            </a>
+          )}
         </div>
       </div>
 

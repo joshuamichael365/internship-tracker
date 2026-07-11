@@ -103,15 +103,18 @@ export function PostingCard({ posting }: { posting: PostingCardData }) {
             </span>
           )}
         </span>
-        <a
-          href={posting.url}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-1 font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-        >
-          Apply <ExternalLink className="h-3 w-3" />
-        </a>
+        {/* Screenshot-intake postings can have no URL (story said "link in bio") */}
+        {posting.url && (
+          <a
+            href={posting.url}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-1 font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+          >
+            Apply <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
       </div>
     </div>
   );
