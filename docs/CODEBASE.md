@@ -1,6 +1,6 @@
 # CODEBASE.md — Internship Tracker & Auto-Apply Assistant
 
-> **What this file is.** An exhaustive, file-level reference for the entire repository, written to be fed to AI models (and humans) answering questions about this project with zero prior context. It complements the higher-level `docs/PROJECT_DOCUMENTATION.pdf`; this document goes deeper — every source file, every table, every flow, every environment variable. Everything described here was verified by reading the actual code as of commit `cbf138c` (2026-07-03).
+> **What this file is.** An exhaustive, file-level reference for the entire repository, written to be fed to AI models (and humans) answering questions about this project with zero prior context. It complements the higher-level `docs/PROJECT_DOCUMENTATION.pdf`; this document goes deeper — every source file, every table, every flow, every environment variable. Everything described here was verified by reading the actual code as of commit `b987650` on branch `sbx` (2026-07-12) — updated from the original `cbf138c` (2026-07-03) pass to add Resume Studio, the per-source README column-map parser, Screenshot Intake, Interview & Skill Prep (P2-M3), the master Auto-Apply kill switch, the Analytics dashboard, Resume Studio's preview-before-apply, and the twice-daily digest + company-watchlist notification overhaul.
 >
 > **Owner:** Joshua Michael (joshuamichael365@gmail.com) — this is a **single-user** application.
 > **Production:** https://web-production-64a44.up.railway.app on Railway (three services: web, worker, Postgres; deploys from GitHub `main`).
@@ -34,11 +34,11 @@
 
 A single-user web application that:
 
-1. **Discovers** new SWE/ML/CS internship postings in near-real-time by polling community GitHub repos (SimplifyJobs, vanshb03), ATS boards (Greenhouse, Lever, SmartRecruiters, Workday), and RSS/Atom feeds — every minute, with conditional HTTP requests so unchanged sources cost almost nothing.
+1. **Discovers** new SWE/ML/CS internship postings in near-real-time by polling community GitHub repos (SimplifyJobs, vanshb03, plus any repo with a non-standard README table via a configurable column map — see §3.5), ATS boards (Greenhouse, Lever, SmartRecruiters, Workday), and RSS/Atom feeds — every minute, with conditional HTTP requests so unchanged sources cost almost nothing. A **Screenshot Intake** page (`/intake`) supplements polling with a manual, vision-assisted route for postings that only ever appear as a social-media screenshot (e.g. an Instagram story) — see §5(g).
 2. **Deduplicates and tags** postings across sources (one card per company+role+location, keyword-classified into SWE/ML/Data/Quant, internship vs new-grad, remote/hybrid/onsite, season/year terms, visa sponsorship).
-3. **Notifies instantly** via web push + email (+ SMS if explicitly enabled), or batches overnight matches into a **morning digest** during quiet hours (default 11 PM–7 AM).
-4. **Tracks applications** through a seven-stage Kanban pipeline (Saved → In Progress → Applied → Assessment/OA → Interviewing → Offer → Rejected) with per-application reminders/OA deadlines.
-5. **Assists applications** at three explicit, per-application automation levels (below), including LLM-drafted cover letters and short answers in the user's own voice (few-shot from their writing samples), PDF generation, organized document storage (in-app / local download / Google Drive), and browser-side form auto-fill through a companion Chrome extension.
+3. **Notifies** via web push (instant, quiet-hours aware) and a **twice-daily HTML email digest** (Simplify-style, default 8am/5pm) — with an **instant per-company watchlist** that bypasses the digest and quiet hours entirely for companies the user cares most about (+ SMS if explicitly enabled). See §5(a)/(f).
+4. **Tracks applications** through a seven-stage Kanban pipeline (Saved → In Progress → Applied → Assessment/OA → Interviewing → Offer → Rejected) with per-application reminders/OA deadlines and generated **interview & skill-prep guidance** (focus areas, practice problems linked to LeetCode/NeetCode, project ideas, resources, behavioral prompts) — see §5(h).
+5. **Assists applications** at three explicit, per-application automation levels (below), including LLM-drafted cover letters and short answers in the user's own voice (few-shot from their writing samples), PDF generation, organized document storage (in-app / local download / Google Drive), an in-app **Resume Studio** (LaTeX editor + Tectonic compile + Sonnet chat assistant, with preview-before-apply for chat-proposed changes), browser-side form auto-fill through a companion Chrome extension, and a **read-only Analytics dashboard** (pipeline funnel, mode split, recommendation accuracy, notification activity, source health).
 
 ## The three application modes
 
@@ -60,6 +60,7 @@ These rules are architectural invariants, visible as code comments and enforced 
 4. **The extension never submits with unfilled required fields or past blockers.** `content.js`'s `__trackerAutoApply` checks for CAPTCHAs/bot-checks **before touching the form** and returns `blocked`; if required fields remain unfilled it returns `incomplete` (downgrading to Assist behavior — orange highlights, user submits); `__trackerFinishAutoApply` re-checks blockers and refuses to submit while `window.__trackerUnresolvedRequired > 0`.
 5. **Bounded blocker retries, then notify.** Client-side: the popup retries a blocked auto-apply at most 3 times with 0s/5s/15s backoff. Server-side: `/api/assist/report` increments `applications.blocker_retries` on each `blocked` event and enqueues the `send_blocker_notice` job when it reaches 3 ("Auto-apply blocked — needs you" across all channels, linking to the tracker page).
 6. **SMS is off by default and explicit opt-in.** `settings.channels` defaults to `{push: true, email: true, sms: false}`; the settings UI labels SMS "Off by default — costs ~$5–10/mo and needs Twilio A2P registration."
+7. **A master Auto-Apply kill switch gates every submission, on top of per-application opt-in.** `settings.auto_apply_enabled` (migration 0007) defaults to **false**. `api/assist/packet/route.ts` is the sole authoritative enforcement point: it reads this flag and, when off, **downgrades `mode: "auto"` to `"assist"` in the response it hands the extension** regardless of that application's own `autoApplyApprovedAt` — the extension only ever sees what the packet route tells it, so it structurally cannot submit while the switch is off. Turning the switch on doesn't auto-submit anything by itself; each application still needs its own opt-in via `approveAutoApply()`. Surfaced in Settings as an "Automation" card (`components/auto-apply-settings.tsx`).
 
 ---
 
@@ -70,11 +71,11 @@ pnpm workspace monorepo (`pnpm-workspace.yaml`: `apps/*` + `packages/*`), Node �
 | Path | What it is |
 |---|---|
 | **`apps/web/`** | Next.js 16 (App Router, Turbopack, React 19, Tailwind v4) application: all UI pages, server actions, API routes (including the token-authed `/api/assist/*` routes the extension talks to), NextAuth v5 Google sign-in, the PWA push service worker, and all server-side libraries (drafting, PDF rendering, storage, recommendation engine, resume parsing). Runs as the Railway "web" service. |
-| **`apps/worker/`** | Always-on Node service built on **graphile-worker** (Postgres-backed job queue + cron). Hosts the source pollers, the ingest pipeline (normalize → dedupe → tag → suppress → store → notify), the three notification channels (web push, Resend email, Twilio SMS), quiet-hours digest, reminders, auto-archive, and the on-demand confirmation/blocker jobs. Runs as the Railway "worker" service. Executed directly with `tsx` — never compiled. |
+| **`apps/worker/`** | Always-on Node service built on **graphile-worker** (Postgres-backed job queue + cron). Hosts the source pollers, the ingest pipeline (normalize → dedupe → tag → suppress → store → notify), the three notification channels (web push, Resend HTML email, Twilio SMS), the twice-daily email digest + company watchlist, reminders, auto-archive, and the on-demand confirmation/blocker jobs. Runs as the Railway "worker" service. Executed directly with `tsx` — never compiled. |
 | **`apps/extension/`** | Chrome Manifest V3 extension ("Internship Tracker Assist", v0.3.0). Plain JS, no build step, loaded unpacked. Popup + options page + an on-demand-injected content script that fills forms. Implements Agentic Assist filling and Full Auto-Apply submission. No background service worker; no static `content_scripts` registration. |
 | **`packages/db/`** | Drizzle ORM schema (`src/schema.ts`), the Postgres client singleton, drizzle-kit migrations in `migrations/`, and re-exported query operators. Consumed by both web and worker via workspace protocol (`@tracker/db`), imported directly as TypeScript source (`main: ./src/index.ts` — no build). |
 | **`packages/shared/`** | Dependency-free shared TypeScript (`@tracker/shared`): type aliases mirroring DB enums, `NormalizedPosting`, normalization + FNV-1a dedupe hashing, keyword tagging/classification regexes, notification-rule evaluation, and quiet-hours math. Imported by web, worker (and its hash is portable to the extension by design). |
-| **`packages/db/migrations/`** | Five generated SQL migrations, 0000–0004 (see §4). `migrations/meta/` is drizzle-kit bookkeeping (excluded from this doc). |
+| **`packages/db/migrations/`** | Nine generated SQL migrations, 0000–0008 (see §4). `migrations/meta/` is drizzle-kit bookkeeping (excluded from this doc). |
 | **`docs/`** | `PROJECT_DOCUMENTATION.pdf` (high-level overview) and this file. |
 | **`data/uploads/`** | **Git-ignored** local upload/document storage root in dev (`UPLOAD_DIR` env var overrides; `/data/uploads` on the Railway volume in prod). Contains `resumes/` keys and generated docs under `Internships/<year>/<Company>_<Role>/`. |
 | **`.claude/launch.json`** | Claude Code preview-server launch config (starts `pnpm --filter web dev` on port 3000). |
@@ -152,9 +153,11 @@ The user's notification filter and quiet-hours math.
   3. `locationModes` likewise.
   4. `excludeCompanies` — compared through `normalizeCompany` on both sides, so "Acme Inc." excludes "acme".
   5. `keywords` — at least one keyword must appear (case-insensitive substring) in `title + description`.
-- **`inQuietHours(now, timezone, startHour, endHour)`** — gets the current hour *in the user's timezone* via `Intl.DateTimeFormat(..., {hour: "numeric", hour12: false, timeZone})`. Handles both windows: non-wrapping (`start <= end` → `hour ∈ [start, end)`) and midnight-wrapping (`23 → 7` → `hour >= 23 || hour < 7`).
+- **`inQuietHours(now, timezone, startHour, endHour)`** — gets the current hour *in the user's timezone* via `Intl.DateTimeFormat(..., {hour: "numeric", hour12: false, timeZone})`. Handles both windows: non-wrapping (`start <= end` → `hour ∈ [start, end)`) and midnight-wrapping (`23 → 7` → `hour >= 23 || hour < 7`). As of the notification overhaul (below), this only gates **push/SMS** — email no longer uses it at all.
+- **`isWatchedCompany(company, watchlist)`** — true if `company` normalized-matches (via `normalizeCompany` on both sides) any entry in `settings.watchlist_companies`. `false` for an empty/undefined watchlist. This is the instant-alert bypass: a watchlisted company's posting skips both the digest queue and quiet hours.
+- **`digestSlotDue(now, timezone, digestHours, lastSentAt)`** — true exactly once per configured send-hour slot: the current hour (in `timezone`) must be one of `digestHours` (e.g. `[8, 17]`), and it must not already have been sent for this hour's slot. Internally compares `slotKey(now)` vs `slotKey(lastSentAt)`, where `slotKey` is a `YYYY-MM-DD-HH` string built from `Intl.DateTimeFormat("en-CA", {...})` (with a `"24"` → `"00"` midnight normalization some engines emit). Safe to call every few minutes — it only returns true on the first tick inside each slot, so `send-digest.ts`'s 5-minute cron can poll it directly without its own dedupe logic.
 
-Called by: `apps/worker/src/notify.ts` (both functions) and `apps/worker/src/tasks/send-digest.ts` (`inQuietHours`).
+Called by: `apps/worker/src/notify.ts` (`inQuietHours`, `isWatchedCompany`) and `apps/worker/src/tasks/send-digest.ts` (`digestSlotDue`).
 
 ### `packages/shared/src/tagging.ts`
 Pure keyword/regex heuristic classifiers — the comment notes they are "used standalone, or as the fallback when Claude tagging is unavailable," but **no Claude-based posting tagger exists yet**; these regexes are the only tagging in production (see §9).
@@ -202,14 +205,19 @@ The complete schema — every table documented in §4. Notable in-code comments 
 | `0002_tidy_mattie_franklin.sql` | Fixes `timezone` default → `America/New_York`; adds `applications.drafts jsonb` (the reviewed drafts the extension fills). |
 | `0003_faithful_shiver_man.sql` | Adds `postings.terms jsonb DEFAULT '[]' NOT NULL` (season/year chips + filters). |
 | `0004_handy_starfox.sql` | Adds `applications.auto_apply_approved_at timestamptz` and `applications.blocker_retries integer DEFAULT 0 NOT NULL` — the Full Auto-Apply (Mode 3) migration. |
+| `0005_workable_sprite.sql` | Creates `latex_resumes` (Resume Studio: id, name, source, compiled_key, compile_log, last_compiled_at, chat_history jsonb default `[]`, created/updated_at). |
+| `0006_moaning_paibok.sql` | Adds `applications.prep jsonb` — cached `InterviewPrep` guidance (P2-M3). |
+| `0007_broad_leech.sql` | Adds `settings.auto_apply_enabled boolean DEFAULT false NOT NULL` — the master Auto-Apply kill switch. |
+| `0008_little_absorbing_man.sql` | Adds `settings.watchlist_companies jsonb DEFAULT '[]'`, `settings.digest_hours jsonb DEFAULT '[8,17]'`, `settings.last_digest_sent_at timestamptz` — the twice-daily digest + company-watchlist notification overhaul. |
+| `0009_absent_yellowjacket.sql` | Adds `settings.gmail_enabled boolean DEFAULT false NOT NULL`, `settings.gmail_refresh_token text`, `settings.gmail_connected_email text`, `settings.gmail_last_sync_at timestamptz` — P2-M2 Gmail status monitoring. |
 
-There is no 0005 — Autofill v2 and semantic option matching (extension v0.2.1/0.3.0) were code-only changes; the application-answer fields live inside the schemaless `profile.data` jsonb.
+Autofill v2 and semantic option matching (extension v0.2.1/0.3.0) needed no migration — those application-answer fields live inside the schemaless `profile.data` jsonb. The per-source README **column map** (`sources.config.columns`, §3.5) likewise needed no migration — `config` is already jsonb.
 
 ---
 
 ## 3.4 apps/web
 
-Next.js 16.2.10, React 19.2.4, next-auth 5.0.0-beta.31, Tailwind v4, `motion` 12.x, `lucide-react` icons, `@anthropic-ai/sdk`, `pdf-lib`. All pages set `export const dynamic = "force-dynamic"` (every render hits the DB — no caching for a single-user dashboard).
+Next.js 16.2.10, React 19.2.4, next-auth 5.0.0-beta.31, Tailwind v4, `motion` 12.x, `lucide-react` icons, `@anthropic-ai/sdk`, `pdf-lib`, CodeMirror 6 (`codemirror`, `@codemirror/{state,view,commands,language,legacy-modes}` — Resume Studio's LaTeX editor only). All pages set `export const dynamic = "force-dynamic"` (every render hits the DB — no caching for a single-user dashboard).
 
 ### 3.4.1 Auth & request guard
 
@@ -307,6 +315,44 @@ Resume selection shared by the packet (metadata) and resume (bytes) assist route
 #### `src/lib/resume-parse.ts`
 `parseResume(resumeId)`: parses an uploaded resume PDF into structured JSON for auto-fill enrichment using **`claude-haiku-4-5-20251001`** with a base64 PDF `document` content block. No-ops when: no API key, resume not found, already parsed, or file isn't a `.pdf`. Prompt requests strict JSON `{education[], experience[], skills[], projects[], links{}}`; response is stripped of markdown fences and `JSON.parse`d; unparseable output silently leaves the row pending ("a re-upload retries"). The result is stored in `resumes.parsed` — displayed as a "parsed" indicator in the Profile UI. **Note:** the parsed structure is stored but not currently consumed by the fill pipeline (the extension fills from `profile.data`, which the user maintains by hand; parse-to-profile enrichment is a stated intention, not wired up).
 
+#### `src/lib/screenshot-extract.ts`
+`extractPostingFromScreenshot(base64, mediaType)` — vision extraction for **Screenshot Intake** (§5g). Exports `ScreenshotMediaType` (`"image/png"|"image/jpeg"|"image/webp"`), `ScreenshotExtraction`, `ExtractResult`.
+
+- Model **`claude-haiku-4-5-20251001`**, `max_tokens: 1000`, one user message with an `image` content block (base64) + a text prompt.
+- The prompt (`EXTRACTION_PROMPT`) targets "a screenshot of a social-media post (often an Instagram story)" and asks for strict JSON `{company, title, url?, locations?, term?, notes?}` — with an explicit anti-fabrication instruction on `url`: *"ONLY include if a full or near-complete URL is actually legible in the image. Never guess, complete, or construct one from the company name."*
+- No API key → `{ok: false, data: {company: "", title: ""}, message: "The Claude API key isn't configured yet — fill in the details below by hand."}` (same graceful-degradation pattern as `drafting.ts`/`resume-parse.ts`).
+- Response parsing strips ```` ```json ```` fences, `JSON.parse`s, and defensively coerces every field (non-string/empty → `undefined`); a parse failure or an extraction with neither `company` nor `title` returns `ok: false` with a specific user-facing `message`, never a throw — the intake form always has *something* to show, even if it's blank fields the user fills by hand.
+- The decoded image bytes live only in this function's call stack — nothing is written to disk or the DB (the screenshot itself is never persisted, per the intake's "extract and discard" design).
+
+Called by `app/actions/intake.ts extractFromScreenshot`.
+
+#### `src/lib/interview-prep.ts`
+Interview & skill-prep engine (P2-M3). Exports `PrepContext`, `InterviewPrep` (re-exported from `@tracker/db`, where the type actually lives — see §4), `generateInterviewPrep(ctx)`.
+
+- Model **`claude-sonnet-5`**, `max_tokens: 4000` — deliberately generous: *"a full five-section prep runs past 2k tokens, and a truncated response yields unparsable JSON."*
+- System prompt instructs the model to ground every suggestion in the specific posting/description (not generic advice), personalize using the user's profile, **never fabricate URLs or specific problem IDs/links** — reference practice problems/resources by well-known **name only** ("Two Sum", "NeetCode 150", "Cracking the Coding Interview") — and cap list sizes (≤6 focus areas, ≤10 practice problems, ≤5 project ideas, ≤6 resources, ≤6 behavioral prompts) to stay inside the token budget.
+- Output shape: `{focusAreas: [{topic, why}], practiceProblems: [{name, pattern, difficulty: "easy"|"medium"|"hard"}], projectIdeas: string[], resources: [{name, kind}], behavioral: string[]}`.
+- `parsePrep(raw)` — defensive JSON parse: strips fences, type-guards every array/field individually and drops malformed entries rather than crashing; returns `null` (not a throw) only when *every* section ends up empty.
+- **Two distinct failure modes, deliberately not conflated**: no API key → `offlinePrep(ctx)`, a clearly `[PLACEHOLDER]`-labeled but *valid* `InterviewPrep` object (so the UI renders normally in dev). A parse failure of a real model response instead **throws** — the code comment explains why: *"NOT that the key is missing... surface it as an error so the client can toast 'try again' rather than showing the misleading offline placeholder, which would falsely claim the API key isn't configured."*
+
+Called by `app/actions/prep.ts generatePrep`.
+
+#### `src/lib/neetcode.ts`
+Two tiny link helpers for the prep panel, both deliberately fabrication-free: `NEETCODE_PRACTICE_URL` (constant, `https://neetcode.io/practice`) and `leetcodeSearchUrl(problemName)` (`https://leetcode.com/problemset/?search=<encoded name>`) — a LeetCode *search* URL rather than a guessed problem slug, so a model-suggested "Two Sum" always resolves to something real even though `interview-prep.ts` never invents a specific link itself.
+
+#### `src/lib/latex-compile.ts`
+**Resume Studio's** Tectonic compile sandbox. Exports `CompileResult`, `compiledKeyFor(id)`, `previewKeyFor(id)`, `compileLatexResume(id)`, `compileLatexPreview(id, source)`.
+
+- **`runTectonic(source)`** (internal) — the actual sandbox: rejects source over 200KB up front; writes it to `main.tex` in a fresh `mkdtemp` temp dir; runs `execFile(TECTONIC_PATH ?? "tectonic", ["--keep-logs", "--outdir", dir, "main.tex"], {cwd: dir, timeout: 45_000, env: {...process.env, XDG_CACHE_HOME: TECTONIC_CACHE_DIR}})` — **never a shell string**, fixed argv only; rejects a compiled PDF over 5MB; always tails stdout+stderr to the last 4000 chars for the stored `compileLog`; **always removes the temp dir** in a `finally`, success or failure. A timeout is detected via the caught error's `killed` flag and gets a distinct "Compile timed out after 45s" log prefix.
+- **`compileLatexResume(id)`** — the normal "Compile" button path: loads the row's saved `source`, runs it, and on success **persists**: writes the PDF to `uploads/latex-resumes/<id>.pdf` (`compiledKeyFor`), updates `compiledKey`/`lastCompiledAt`/`compileLog` on the row. On failure, updates only `compileLog` (leaves any previous good `compiledKey` in place) and returns `ok: false`.
+- **`compileLatexPreview(id, source)`** (added for the preview-before-apply feature, §5i) — compiles an arbitrary **proposed** source string (e.g. from chat) instead of the row's saved source, and on success writes to a **separate throwaway key** `latex-resumes/<id>-preview.pdf` (`previewKeyFor`) — deliberately touching neither the row's `source` column nor its real `compiledKey`, so the saved resume and its "Save as version" PDF are untouched until the user explicitly applies the change.
+- Both return `{ok, log, pdfUrl?}`; `pdfUrl` points at `/api/latex/pdf/<id>` (real) or `/api/latex/pdf/<id>?preview=1` (throwaway), each cache-busted with `?t=<timestamp>`.
+
+Called by `api/latex/compile/route.ts` (dispatches to one or the other based on whether the request body carries a `source`) and `api/latex/pdf/[id]/route.ts` (reads back whichever key).
+
+#### `src/lib/latex-templates.ts`
+`JAKES_RESUME_TEMPLATE` — the built-in starter document for a new Resume Studio resume: a one-page CS-student resume in the style of the well-known community "Jake's Resume" (`\documentclass[letterpaper,11pt]{article}` + `latexsym`, `fullpage`, `titlesec`, `marvosym`, `color`, `verbatim`, `enumitem`, `hyperref`, `fancyhdr`, `babel`, `tabularx`). Deliberately plain-package-only, no shell-escape, no exotic fonts — "so Tectonic compiles them out of the box." Used by `createLatexResume()` as the seed `source` for every new row.
+
 #### `src/lib/applied-side-effects.ts`
 `onApplied(id, company, roleTitle)` — the canonical side effects of an application *first* reaching "applied", shared by the manual stage change and the extension's auto-apply report:
 1. Enqueues the submission receipt **via SQL** directly into graphile-worker's queue:
@@ -354,11 +400,29 @@ Drafting + document persistence.
 `addWritingSample(set, formData)` / `deleteWritingSample(id)` — CRUD for the two few-shot sample sets.
 
 #### `actions/settings.ts`
-- **`updateSettings(update)`** — single-row upsert on the constant `id: true` primary key; revalidates `/settings` and `/internships` (the latter because `includeNewGrad` changes the default listing filter).
+- **`SettingsUpdate`** — partial-update shape; now includes `autoApplyEnabled?`, `watchlistCompanies?`, and `digestHours?` alongside the original timezone/quietHours/channels/includeNewGrad/notificationRules fields.
+- **`updateSettings(update)`** — single-row upsert on the constant `id: true` primary key; revalidates `/settings` and `/internships` (the latter because `includeNewGrad` changes the default listing filter). Called by `components/auto-apply-settings.tsx` (`{autoApplyEnabled}`) and `components/notification-settings.tsx` (`{watchlistCompanies, digestHours}`) in addition to its original callers.
 - **`enqueueConfirmation(applicationId)`** — SQL `add_job('send_confirmation', ...)`. Its comment says "Used by tracker stage changes" but nothing currently imports it — the live path is `onApplied()` in `applied-side-effects.ts`. Dead-but-harmless export (see §9).
+- **`disconnectGmail()`** — P2-M2's revoke path. Reads the stored `gmailRefreshToken`, best-effort calls Google's revoke endpoint via `revokeGoogleToken` (`@tracker/shared`; failures are swallowed since the local copy gets cleared regardless), then clears `gmailEnabled`/`gmailRefreshToken`/`gmailConnectedEmail`/`gmailLastSyncAt` in one upsert. Called from `components/gmail-settings.tsx`'s Disconnect button.
+
+#### `actions/intake.ts` — Screenshot Intake's write path
+- **`extractFromScreenshot(formData)`** — validates the uploaded `image` field (present, ≤10MB, MIME in `{image/png, image/jpeg, image/webp}`), base64-encodes it, and calls `lib/screenshot-extract.ts extractPostingFromScreenshot`. Every rejection path (missing file, oversized, wrong type) returns the same `ExtractResult` shape with a user-facing `message` rather than throwing, so the client component never needs a separate error branch.
+- **`ConfirmedIntake`** / **`IntakeCreateResult`** — the user-edited-and-confirmed shape (`{company, title, url?, locations?, term?, notes?}`) and the result (`{status: "created"|"existing", postingId}`).
+- **`createPostingFromIntake(input)`** — runs the confirmed fields through the **same normalize/dedupe/tag pipeline as the worker's ingest** (`classifyRole/Level/LocationMode`, `extractTerms`, `dedupeHash` from `@tracker/shared`) so a screenshot-sourced posting is indistinguishable from a polled one once created. Computes `dedupeHash({company, title, locations})` first and checks for an existing row — a match returns `{status: "existing", postingId}` **without inserting a duplicate** (the doc comment: this means "the worker (or an earlier intake) has already recorded this exact company + role + location — we return that posting instead"). On insert, `onConflictDoNothing({target: postings.dedupeHash})` handles a race against a concurrent poll/intake; losing the race re-queries and returns the winner's row as `existing`. `seenIn` stays `[]` — there's no `sources` row for a manual intake. `url` may be an empty string (the user leaves it blank when "link in bio" isn't legible in the screenshot) — this is what makes the Apply-link-hiding UI change (below) necessary.
+
+#### `actions/prep.ts`
+- `contextFor(applicationId)` — assembles `PrepContext` (application row + linked posting's description/roleType + `profile.data`), mirroring `actions/assist.ts`'s `contextFor` pattern.
+- **`generatePrep(applicationId)`** — calls `lib/interview-prep.ts generateInterviewPrep`, persists the result into `applications.prep` (cached exactly like `mode_recommendation` — generated once, regenerable on demand, "so views don't re-bill"), revalidates `/tracker` and `/tracker/{id}`, and returns the fresh `InterviewPrep` for the client to render immediately without a refetch.
+
+#### `actions/latex.ts` — Resume Studio's write path
+- **`createLatexResume()`** — inserts a new `latex_resumes` row seeded with `JAKES_RESUME_TEMPLATE`, named "Untitled resume"; returns the new id for the client to `router.push` into the editor.
+- **`updateLatexResume(id, {name?, source?})`** — the autosave/rename path; revalidates both the list and detail pages.
+- **`deleteLatexResume(id)`** — deletes the row, then best-effort-deletes its compiled PDF (`deleteUpload(row.compiledKey)`) **and** its throwaway preview PDF (`deleteUpload(previewKeyFor(id))`, added for the preview feature — a no-op if the resume was never previewed, since `deleteUpload` swallows already-gone errors).
+- **`saveLatexResumeAsVersion(id)`** — copies the row's *persisted* compiled PDF (not a preview) into the standard resume flow: reads the bytes from disk, `saveUpload(..., "resumes")`, inserts a non-default `resumes` row named `"<name> (Studio)"`, then best-effort `parseResume()` on it (dynamically imported, errors logged not thrown) — identical mechanics to the profile-upload path in `actions/profile.ts`. Fails cleanly with `{ok: false, error}` if the resume was never successfully compiled.
+- **`chatLatex(id, userMessage)`** — the conversational assistant. Loads context (current `source`, `profile.data`, the default resume's `parsed` structure), and — without an API key — returns a clearly `[The Claude API key isn't configured yet...]`-labeled offline reply. With a key, model **`claude-sonnet-5`**, `max_tokens: 2500`, system prompt pins: never invent facts absent from the profile/parsed-resume/conversation; when producing LaTeX, output the **complete** updated document wrapped in exactly one `<latex>...</latex>` block (never a partial snippet, never more than one block); stay outside `<latex>` for plain prose. History capped at `MAX_CONTEXT_MESSAGES = 12` sent to the model, `MAX_STORED_MESSAGES = 30` persisted to `chat_history`.
 
 #### `actions/sources.ts`
-- `KIND_CONFIG_FIELDS` — the per-kind config field whitelist (github_repo: repo/branch/listingsPath; greenhouse: boardToken; lever: site; smartrecruiters: company; workday: host/tenant/site/searchText; rss + instagram_mirror: feedUrl/defaultCompany).
+- `KIND_CONFIG_FIELDS` — the per-kind config field whitelist (github_repo: repo/branch/listingsPath/**columns**; greenhouse: boardToken; lever: site; smartrecruiters: company; workday: host/tenant/site/searchText; rss + instagram_mirror: feedUrl/defaultCompany). `columns` (added for the README column-map parser, §3.5) is the newest field — a free-text override string like `"company=1,role=2,location=3,link=5"` for repos whose README table doesn't follow the community-standard layout.
 - **`addSource(formData)`** — builds the `config` jsonb from only whitelisted, non-empty fields.
 - **`toggleSource` / `deleteSource`** — enable/disable/remove.
 - **`addPresetSource(preset)`** — one-click presets for `"simplify"` (SimplifyJobs/Summer2026-Internships, branch `dev`, `.github/scripts/listings.json`) and `"vanshb03"` (Summer2027-Internships, same layout). These are the two production sources.
@@ -377,15 +441,16 @@ Two lines: re-exports `GET`/`POST` from `handlers` in `src/auth.ts`. All NextAut
    - else first application whose stored URL has the **same hostname** as the tab.
    The `updatedAt desc` ordering means on shared ATS domains (e.g. two Greenhouse applications at `boards.greenhouse.io`), the *most recently touched* application wins — a known heuristic limitation (§9).
 3. No match → `{"match": null}` (200).
-4. On match, resolves the latest `cover_letter` document for the application and the effective resume, and returns:
+4. **Master Auto-Apply kill switch enforcement** (added with `settings.auto_apply_enabled`, migration 0007) — this route is the *sole* authoritative gate: it reads `settings.autoApplyEnabled` (default false) and computes `effectiveMode = match.mode === "auto" && !autoApplyEnabled ? "assist" : match.mode`. When the switch is off, an application the user individually opted into Auto-Apply still gets reported to the extension as `mode: "assist"` — the extension never even learns the real mode is `auto`, so there is no client-side code path that could submit while the switch is off. `autoApply.approved` is then computed from `effectiveMode`, not the raw stored mode. The switch has no effect on `assist`/`manual`/`null` applications.
+5. On match, resolves the latest `cover_letter` document for the application and the effective resume, and returns:
 ```json
 {
   "match": {
     "applicationId": 12,
     "company": "…", "roleTitle": "…",
-    "mode": "assist" | "manual" | "auto" | null,
+    "mode": "assist" | "manual" | "auto" | null,   // "auto" downgraded to "assist" when the master switch is off
     "drafts": { "coverLetter": "…", "answers": [{"prompt": "…", "answer": "…"}] },
-    "autoApply": { "approved": true|false },       // !!autoApplyApprovedAt
+    "autoApply": { "approved": true|false },       // effectiveMode === "auto" && !!autoApplyApprovedAt
     "coverLetterPdfUrl": "/api/assist/document/34" | null,
     "resumePdfUrl": "/api/assist/resume?applicationId=12" | null,
     "resumeFilename": "ML-focused.pdf" | null
@@ -425,8 +490,20 @@ Two lines: re-exports `GET`/`POST` from `handlers` in `src/auth.ts`. All NextAut
 #### `api/documents/[id]/download/route.ts`
 Session-guarded (via proxy) `GET`: streams a stored document as an attachment (`content-disposition: attachment; filename="<basename>"`, content-type `application/pdf`) using a Node `createReadStream`. Backs every "Download" link in the UI.
 
+#### `api/latex/compile/route.ts` — Resume Studio's compile endpoint
+Session-guarded `POST {id, source?}`. Dispatches on whether `source` is present in the body: with a non-empty `source` string, treats the request as "compile this **proposed** change as a throwaway preview" → `compileLatexPreview(id, source)` (leaves the saved resume and its persisted compile untouched); without it, compiles the resume's own saved source and persists the result as usual → `compileLatexResume(id)`. A failed compile (`ok: false`) is returned with **HTTP 422** (not 200) so the client's `res.ok` check doubles as the success/failure signal; the JSON body (`{ok, log, pdfUrl?}`) is identical either way.
+
+#### `api/latex/pdf/[id]/route.ts`
+Session-guarded `GET`, streams the compiled PDF inline (`content-disposition: inline`, for the studio's `<iframe>` preview pane) via `createReadStream`. `?preview=1` serves the **throwaway** preview key (`previewKeyFor(id)`) written by `compileLatexPreview`; without it, serves the resume's persisted `compiledKey`. 404 if the resume row, the relevant key, or the underlying file is missing. Filename in the `content-disposition` header is the resume's sanitized `name`, suffixed `" (preview)"` when `?preview=1`.
+
 #### `api/push/subscribe/route.ts`
 Session-guarded. `POST` — validates `{endpoint, keys:{p256dh, auth}}` and upserts into `push_subscriptions` (`onConflictDoNothing` on the unique endpoint — re-subscribing is idempotent). `DELETE` — removes by endpoint. Multi-device by design: every row receives every push.
+
+#### `api/gmail/connect/route.ts` — P2-M2's consent-flow start
+Session-guarded `GET` (not in the proxy's exclusion list, so it's protected exactly like every page — no bespoke auth check needed, matching the codebase's stated convention of not re-checking auth beyond the proxy guard). Generates a `crypto.randomUUID()` CSRF state, stores it in a short-lived (10 min) httpOnly cookie (`gmail_oauth_state`), and 307-redirects to Google's OAuth consent screen (`googleAuthUrl` from `@tracker/shared`) requesting **only** `https://www.googleapis.com/auth/gmail.readonly`, with `access_type=offline` and `prompt=consent` (the latter forces Google to reissue a `refresh_token` even on a repeat connect, since Google otherwise omits it after the first-ever grant). This is a **completely separate OAuth flow from sign-in** (`src/auth.ts`'s NextAuth Google provider) — connecting or disconnecting Gmail monitoring never touches the sign-in session or its scope.
+
+#### `api/gmail/callback/route.ts` — P2-M2's consent-flow completion
+Session-guarded `GET`. Reads `code`/`state`/`error` from the query string, reads back and deletes the `gmail_oauth_state` cookie, and rejects (redirect to `/settings?gmail=error`) unless the state matches exactly — the CSRF guard. On success: `exchangeGoogleCode` (`@tracker/shared`) for tokens; if Google didn't return a `refresh_token` (rare given `prompt=consent` above), treats it as an error rather than silently storing nothing useful. Fetches the connected account's email via `fetchGoogleUserEmail` (purely for display in Settings). Upserts `settings.{gmailEnabled: true, gmailRefreshToken, gmailConnectedEmail, gmailLastSyncAt: null}` — the reset to `null` on `gmailLastSyncAt` means the very next worker sync scans the standard 2-day lookback window rather than assuming any prior history. **Never persists the access token** (short-lived, regenerated per sync from the refresh token) and never touches the inbox itself during this flow. Redirects back to `/settings?gmail=connected|error&detail=...`, which `components/gmail-settings.tsx` reads on mount to toast the result.
 
 ### 3.4.5 Pages (`src/app/`)
 
@@ -457,18 +534,39 @@ Server component translating query-string params into SQL. Filter keys: `q, term
 - The search `<form method="GET">` embeds all other active params as hidden inputs so searching doesn't clear filters.
 
 #### `app/(app)/internships/[id]/page.tsx` — posting detail
-Loads the posting, resolves `seenIn` source ids to source names, and checks whether it's already tracked. Header: logo, title, meta line (role/mode/locations/found-ago/deadline), Save (bookmark) form, **Track** button (inline server action → `trackPosting`) or "In tracker" link, and the external Apply link. Body: description card (or "source doesn't include a description"), My-notes card (server-action form), and the "Seen in" card listing each reporting source with its first-seen time — the visible face of cross-source dedupe.
+Loads the posting, resolves `seenIn` source ids to source names, and checks whether it's already tracked. Header: logo, title, meta line (role/mode/locations/found-ago/deadline), Save (bookmark) form, **Track** button (inline server action → `trackPosting`) or "In tracker" link, and the external Apply link — **hidden when `posting.url` is empty** (`{posting.url && (...)}`) , with an inline comment noting why: *"Screenshot-intake postings can have no URL (story said 'link in bio')."* Body: description card (or "source doesn't include a description"), My-notes card (server-action form, its submit button now `<SubmitButton>` for a proper pending state — see `components/submit-button.tsx`), and the "Seen in" card listing each reporting source with its first-seen time — the visible face of cross-source dedupe.
 
 #### `app/(app)/tracker/page.tsx` — Kanban board
-Loads all applications + open reminders; builds `TrackerCard[]` where `dueSoon` is the application's undone reminders due within 7 days (soonest first). Renders the "Add application by link" `<details>` form (URL required; company/role "auto-detected if blank" → `addManualApplication`) and `<TrackerBoard/>`. Subtitle states the product rule: "Every application, its stage, and its automation mode — always explicit."
+Loads all applications + open reminders; builds `TrackerCard[]` where `dueSoon` is the application's undone reminders due within 7 days (soonest first). Renders `<AddApplicationForm/>` (see `components/add-application-form.tsx` — extracted from an inline `<details>` form during the "UI cohesion" pass) and `<TrackerBoard/>`. Subtitle states the product rule: "Every application, its stage, and its automation mode — always explicit."
 
 #### `app/(app)/tracker/[id]/page.tsx` — application detail
 The mode-selection and assist workspace page.
 
 - **Computes and persists the recommendation once**: if `modeRecommendation` is absent, calls `recommendMode(id)` and stores the result on the row (so signals/reasons are stable per application and `mode_decisions` can reference them).
 - Loads reminders, all resumes (id+name), the linked posting (for its description), and the profile.
-- Left column: posting description card; then `AssistPanel` **only when `mode === "assist"`** — manual mode gets "you're handling this one yourself", no-mode gets a nudge to choose Assist.
+- Left column: posting description card; then `AssistPanel` **only when `mode === "assist"`** — manual mode gets "you're handling this one yourself", no-mode gets a nudge to choose Assist; then **`PrepPanel`** (`applicationId`, `initialPrep: app.prep`) — rendered **unconditionally, in every mode**, since interview/skill prep doesn't touch the application's drafts or submission path.
 - Right column: `ApplicationEditor` with everything it needs, including the `autoApply` bundle (`profile.data`, `applications.drafts`, resume display name) that powers the pre-submit preview.
+
+#### `app/(app)/analytics/page.tsx` — read-only dashboard (Phase 3)
+Server component, six `Promise.all`-parallelized query groups feeding six cards, all built from data the app already had (`applications`, `postings`, `sources`, `mode_decisions`, `notification_log`) — "no new data collected here" per the page subtitle.
+
+1. **Top stat row** (`StatCard`): total applications (all-time, every stage), "Applied+" (count past Saved/In Progress), active postings tracked, response rate (`interviewing+offer+rejected` ÷ `applied+assessment+interviewing+offer+rejected`, `—` when the denominator is 0).
+2. **Pipeline funnel** — one `BarRow` per stage (count ÷ total applications), colored via a locally-defined `STAGE_VAR` map.
+3. **Automation mode split** — manual/assist/auto/unset counts as `BarRow`s; `unset` (null mode) rendered with a **dashed** ring dot to match `ModeBadge`'s "not chosen" visual language.
+4. **Recommendation vs. your choice** — overall agreement % from `mode_decisions` (`recommended = chosen`), plus a per-ATS breakdown (`signals->>'ats'` grouped via a raw `sql` filter expression: `count(*) filter (where recommended = chosen)`).
+5. **Notification activity** — `notification_log` grouped by `kind` (instant/digest/confirmation/blocker) and by `channel` (push/email/sms), side by side.
+6. **Sources & postings** — postings grouped by `status` (active/expired/hidden), plus source health (enabled count, most recent `lastPolledAt` via `timeAgo`, and any `lastError`s listed by name).
+
+Every section has its own `EmptyState` for the zero-data case, so a fresh install renders a coherent (if sparse) page rather than blank cards. **Deliberate code duplication, explained in a comment**: `STAGE_LIST`/`STAGE_VAR` are redefined locally rather than imported from `tracker-board.tsx`, because that file is `"use client"` — importing a plain data const from a client module into this server component would turn it into a client reference and crash at render (`STAGE_LIST.map` throwing). Only the `Stage` *type* is imported (type-only imports are erased, so that's safe).
+
+#### `app/(app)/intake/page.tsx` — Screenshot Intake
+Thin server wrapper: `PageHeader` ("Screenshot a story or post announcing a new internship, and Claude will pull out the details for you to confirm.") + `<ScreenshotIntake/>`. All logic lives client-side — see `components/screenshot-intake.tsx` and §5(g).
+
+#### `app/(app)/resume-studio/page.tsx` — Resume Studio list
+Server component: lists all `latex_resumes` rows (id/name/lastCompiledAt/updatedAt, newest-updated first) as cards in a `StaggerGrid`, each showing "Last compiled {time ago}" or "Not compiled yet" and an "Open" link into the editor. `<NewResumeButton/>` in the header actions creates a row (seeded from `JAKES_RESUME_TEMPLATE`) and navigates straight into it. Empty state points at the built-in template and the chat assistant.
+
+#### `app/(app)/resume-studio/[id]/page.tsx` — Resume Studio editor
+Loads one `latex_resumes` row (404 via `notFound()` if missing or the id doesn't parse) and hands it to `<LatexStudio data={...}>` — the entire editor/compile/chat/preview UI lives in that client component (below).
 
 #### `app/(app)/documents/page.tsx`
 Flat list of the `documents` table (left-joined to applications, newest first, limit 200): kind label, company/role with logo, destination label (In-app/Local/Google Drive), the storage key (which *is* the folder path), created-ago, a link to the owning application, and a `/api/documents/{id}/download` link.
@@ -480,7 +578,7 @@ Lists non-active postings (limit 300, newest first) with the reason derived from
 Three cards: `ResumeManager` (uploads list + default star + delete + upload form; shows "parsing activates once the Claude API key is configured" for unparsed rows), `ProfileForm` (the auto-fill field map), `WritingSamples` (two-column sample sets).
 
 #### `app/(app)/settings/page.tsx`
-Three cards: `SourcesManager` (with preset buttons shown only until any github_repo source exists), `NotificationSettings` (receives `VAPID_PUBLIC_KEY` from server env — null disables the push-enable button with an explanatory hint), `StorageSettings` (receives `driveConfigured()`).
+Five cards: `SourcesManager` (with preset buttons shown only until any github_repo source exists), `NotificationSettings` (receives `VAPID_PUBLIC_KEY` from server env — null disables the push-enable button with an explanatory hint — plus, as of the notification overhaul, `watchlistCompanies` and `digestHours` from `settings`), an **"Automation" card** wrapping `AutoApplySettings` (receives `prefs?.autoApplyEnabled ?? false`; subtitle: "Controls whether the browser extension may submit applications for you."), `StorageSettings` (receives `driveConfigured()`).
 
 ### 3.4.6 Components (`src/components/`)
 
@@ -497,7 +595,7 @@ Client component; exports `domainFromUrl` + `CompanyLogo`. Derives a company dom
 Stateless-URL filter chips. `buildLink` reconstructs the querystring from the whitelist `FILTER_KEYS`, toggling one key (clicking an active chip removes it — every chip's href is precomputed, so filtering is pure navigation, SSR-friendly, no client state). Groups render as labeled rows; a "More" row hosts the level toggle (only when new-grad inclusion is on), Saved, and sort chips, plus "Clear all (N)". On mobile (`< md`) the whole bar collapses behind a "Filters" button with an active-count badge; on desktop it's always expanded.
 
 #### `posting-card.tsx`
-The internships-grid card. Whole card is a `role="link"` div navigating to the detail page (keyboard accessible); the bookmark button and external Apply link `stopPropagation`. Shows logo, company, 2-line-clamped title, the **role-type badge with per-role colors** (`ROLE_COLORS`: swe = accent blue, ml = purple/grape, data = success green, quant = warning orange, other = neutral), neutral chips for first term + New Grad + work mode, first location (+N), found-ago + "· N sources" when deduped from multiple, a warning-tinted deadline pill, and an Apply link revealed on hover.
+The internships-grid card. Whole card is a `role="link"` div navigating to the detail page (keyboard accessible); the bookmark button and external Apply link `stopPropagation`. Shows logo, company, 2-line-clamped title, the **role-type badge with per-role colors** (`ROLE_COLORS`: swe = accent blue, ml = purple/grape, data = success green, quant = warning orange, other = neutral), neutral chips for first term + New Grad + work mode, first location (+N), found-ago + "· N sources" when deduped from multiple, a warning-tinted deadline pill, and an Apply link revealed on hover — **wrapped in `{posting.url && (...)}`** since Screenshot Intake (§5g) can create postings with an empty `url` ("link in bio" not legible in the screenshot); the same guard was added to `posting-list.tsx`'s row (the list-view equivalent) and the detail page's Apply button.
 
 #### `tracker-board.tsx`
 Exports `STAGES` (the canonical ordered stage list + labels — also imported by ApplicationEditor for its stage dropdown), `Stage` type, `TrackerCard`, `TrackerBoard`. Kanban of 7 fixed columns (260px, horizontal scroll); column headers carry a **stage-colored dot** (`STAGE_DOT`: saved gray, in_progress accent, applied success, assessment warning, interviewing grape, offer success, rejected danger) and a count pill. Cards show logo, company, role, `ModeBadge`, applied/created time, a warning pill for the nearest due-soon reminder, and **chevron buttons that move the card one stage left/right** (`updateStage` in a transition; card dims while pending). No drag-and-drop — deliberate simplicity.
@@ -525,13 +623,42 @@ The Agentic Assist workspace (left column when mode = assist). State: `coverLett
 - **Short answers**: paste a portal question → "Draft" appends a QA with `generating: true` and fills the answer async (per-question streaming-ish UX); each answer is an editable textarea with a remove button.
 - **Save documents** → `saveAssistDocuments` with only non-empty answers; renders each `SavedDoc` ("Saved to Google Drive / local download / in-app storage · <path>") with a Download link, and surfaces any `driveError` in warning color.
 - Header copy states the rule: "You can edit everything before it's used anywhere — nothing is submitted by the app."
+- Editing or removing a cover letter / answer after a save clears the stale `saved` result (`setSaved(null)`) so the UI never shows a "Saved" state that no longer matches the unsaved edit (a UI-cohesion fix).
+
+#### `prep-panel.tsx`
+Interview & skill-prep card (P2-M3), rendered on the application detail page in **every** mode — unlike `AssistPanel` it never touches drafts or the submission path, so there's no reason to gate it on mode. Receives `applicationId` + `initialPrep` (the cached `applications.prep`, possibly `null`).
+
+- Empty state: short explanation + a **"Generate prep"** button → `generatePrep(applicationId)` (`app/actions/prep.ts`); on failure, toasts "Couldn't generate prep — try again" rather than throwing into the UI.
+- Populated state, five optional sections (each only rendered if non-empty): **Focus areas** (topic + why, in `surface-secondary` chips), **Practice problems** (name linked to `leetcodeSearchUrl(name)`, pattern, and a difficulty pill colored via `DIFFICULTY_STYLES` easy=success/medium=warning/hard=danger — plus a header-level "NeetCode 150" link to `NEETCODE_PRACTICE_URL`), **Project ideas** (bullet list), **Resources** (name + kind pill chips), **Behavioral prompts** (bullet list).
+- A **"Regenerate"** button at the bottom re-runs `generatePrep` and overwrites the cached `prep` — no versioning/history, always the latest generation.
+
+#### `add-application-form.tsx`
+The Tracker's "Add application by link" panel, extracted from an inline `<details>`/`<summary>` during a UI-cohesion pass. The doc comment explains why: the old inline version used **uncontrolled inputs inside a bare `<details>`** — on a successful submit the route revalidated but the DOM form itself persisted, so fields stayed filled and the panel stayed open with no success feedback. This component instead follows the `sources-manager.tsx`/`writing-samples.tsx` pattern: controlled `open` state, `formRef.current?.reset()` + `setOpen(false)` on success, a pending label, and a toast.
+
+#### `submit-button.tsx`
+A tiny drop-in `<button type="submit">` reading `useFormStatus()` for its own pending state (`{children, pendingLabel, className}`) — for the small server-action forms embedded directly in server-component pages (e.g. posting notes on the internship detail page) where converting the whole page to a client component just for one button's pending state isn't warranted. Must be rendered inside the `<form>` it submits (a `useFormStatus` requirement).
 
 #### `notification-settings.tsx`
 Client settings panel with optimistic local state; every change immediately persists via `updateSettings` (no save button).
 - **Push on this device**: feature-detects service worker + PushManager; states: unsupported / denied / off / on. Enable → registers `/sw.js`, requests permission, `pushManager.subscribe({userVisibleOnly: true, applicationServerKey: VAPID_PUBLIC_KEY})`, POSTs the subscription JSON to `/api/push/subscribe`. Without a VAPID key the button is absent and the hint says to add keys to the server env.
 - **Channel toggles** (iOS-style switch buttons): push, email, and SMS — SMS carries the explicit opt-in warning note (rule #6).
-- **Quiet hours**: start/end hour dropdowns (12-hour labels) + free-text timezone input (IANA name, saved on blur).
+- **Email digest** (new, notification overhaul) — two `HourSelect` dropdowns (12-hour labels, 0–23 internally) for `digestHours[0]`/`digestHours[1]` (default 8am/5pm), captioned "New postings are collected and emailed twice a day — not one email per posting"; and an **"Instant-alert companies"** comma-separated text input for `watchlistCompanies`, captioned "Email + push the moment these companies post — skipping the digest so you can apply early."
+- **Quiet hours**: start/end hour dropdowns (12-hour labels) + free-text timezone input (IANA name, saved on blur). Caption updated to reflect the overhaul: "Push notifications pause during these hours (email always uses the twice-daily digest above)" — quiet hours no longer touch email at all.
 - **Scope + rules**: include-new-grad toggle; role-type multi-select chips and work-mode chips ("None selected = all"); exclude-companies comma-separated text input — all mapping 1:1 onto `NotificationRules`.
+
+#### `auto-apply-settings.tsx`
+The master Auto-Apply kill switch UI (Settings → Automation card). A single iOS-style toggle (`initial: boolean` from `settings.autoApplyEnabled`) with optimistic local state and revert-on-failure; icon + copy flip with state (`ShieldCheck`/success green when off — "The extension will never submit an application on its own"; `ShieldAlert`/warning when on — "Applications you've individually opted in can be filled and submitted... Turn this off to stop all auto-submitting instantly"). Persists via `updateSettings({autoApplyEnabled})`. Purely a settings toggle — the actual enforcement is server-side in `api/assist/packet/route.ts` (§3.4.4), not in this component.
+
+#### `gmail-settings.tsx` — P2-M2 connect/disconnect UI (Settings card)
+Two states driven by `initial: {enabled, connectedEmail, lastSyncAt}` (from `settings.gmail*`): **disconnected** → a plain `<a href="/api/gmail/connect">` button (a real navigation, not a fetch — it needs to hit a 307-redirecting route handler, not a server action) labeled "Connect Gmail"; **connected** → "Connected as {email}" + `timeAgo(lastSyncAt)` (or "Not synced yet — checks every 15 minutes" before the first tick) + a "Disconnect" button calling the `disconnectGmail()` server action. On mount, reads the `?gmail=connected|error&detail=...` query params the callback route sets (`useSearchParams`), toasts the result, and `router.replace("/settings", {scroll:false})` to strip them from the URL so a page refresh doesn't re-toast. Privacy copy is inline in the card body, not just in docs: "Read-only — never sends, deletes, or modifies anything in Gmail. Only the extracted status is stored; email content is never saved."
+
+#### `screenshot-intake.tsx`
+The Screenshot Intake workspace (`/intake`), a single client component covering upload → extract → confirm → create → track. State machine, roughly:
+1. **Drop/pick an image** (drag-and-drop zone or click-to-browse, PNG/JPG/WebP ≤10MB client-side-checked) → object-URL preview shown immediately.
+2. **Extract**: `startExtract` transition calls `extractFromScreenshot(formData)`; while pending shows "Reading the screenshot…"; result populates an editable `FormFields` object (company/title/url/locations-as-comma-string/term/notes) and, if extraction was partial/failed, a warning banner with the server's `message`.
+3. **Confirm the details** card — every field editable before anything is saved ("Nothing is saved until you confirm"); Confirm is disabled until company + title are both non-empty.
+4. **Confirm & add posting** → `createPostingFromIntake`; success state shows "Posting added" or "Already known" (deduped) with a **View posting** link and a **Track it** button (→ `trackPosting`, same one-click track as the posting detail page) or "Add another screenshot" to reset.
+The whole flow deliberately never persists the image itself — only the `FormFields` the user has reviewed.
 
 #### `profile-manager.tsx`
 Two exports. `ResumeManager` — list with Default badge, make-default star, delete, and the upload form (file ≤10MB `.pdf/.doc/.docx` + optional label). `ProfileForm` — the auto-fill field map, in two sections that mirror the extension's two rule tables exactly:
@@ -540,10 +667,10 @@ Two exports. `ResumeManager` — list with Default badge, make-default star, del
 Everything saves via `saveProfile` into the single `profile.data` jsonb.
 
 #### `sidebar.tsx`
-Desktop: fixed 240px sidebar (translucent `--sidebar` + backdrop-blur) with logo mark, 7 nav links (Dashboard, Internships, Tracker, Documents, Profile, Archive, Settings; active = `accent-soft` pill; Dashboard active only on exact `/`), ThemeToggle at bottom. Mobile: sticky top bar + horizontally scrolling pill nav.
+Desktop: fixed 240px sidebar (translucent `--sidebar` + backdrop-blur) with logo mark, **10** nav links in order — Dashboard, Internships, Tracker, **Analytics**, **Screenshot Intake**, Documents, **Resume Studio**, Profile, Archive, Settings (active = `accent-soft` pill; Dashboard active only on exact `/`) — ThemeToggle at bottom. Mobile: sticky top bar + horizontally scrolling pill nav. (Analytics/`BarChart3`, Screenshot Intake/`Camera`, and Resume Studio/`FileEdit` are the icons added across the Phase-3/Resume-Studio/Screenshot-Intake work — Resume Studio predates this doc revision but was previously undocumented here.)
 
 #### `sources-manager.tsx`
-Sources list with kind label, last-polled time, and `lastError` surfaced in danger color with an alert icon (poller failures are user-visible); enabled switch; delete. Preset buttons (+SimplifyJobs, +vanshb03) shown only when `hasPresets` is false. The add form renders kind-specific fields from `KIND_FIELDS` (mirroring the server-side whitelist) with realistic placeholders (e.g. Workday host `nvidia.wd5.myworkdayjobs.com`).
+Sources list with kind label, last-polled time, and `lastError` surfaced in danger color with an alert icon (poller failures are user-visible); enabled switch; delete. Preset buttons (+SimplifyJobs, +vanshb03) shown only when `hasPresets` is false. The add form renders kind-specific fields from `KIND_FIELDS` (mirroring the server-side whitelist) with realistic placeholders (e.g. Workday host `nvidia.wd5.myworkdayjobs.com`). `github_repo`'s field list includes the **README column map** input — labeled "README column map (optional, non-standard tables only)", placeholder `company=1,role=2,location=3,link=5` — for repos whose table layout deviates from the community standard (see `sources/github.ts` §3.5).
 
 #### `storage-settings.tsx`
 Three radio-style option cards (inapp / local / gdrive) with descriptions; gdrive shows "(not connected yet)" when `driveConnected` is false — selecting it anyway is allowed (saves fall back with `driveError`, keeping the in-app copy). Persists immediately via `updateStorageDestination`.
@@ -553,6 +680,31 @@ Toggles the `dark` class on `<html>` and writes `localStorage.theme`. Initial ic
 
 #### `writing-samples.tsx`
 Two `SampleSet` columns (cover letters / short answers — "a separate voice from cover letters"). Each sample is a `<details>` with title + char count, expandable full text, delete; add form (title + textarea).
+
+#### `rich-text.tsx`
+Dependency-free plain-text → React-element formatter (**no `dangerouslySetInnerHTML` anywhere**), used for posting descriptions and elsewhere prose needs light structure: splits on blank lines into paragraphs (`\n{2,}`), groups a block of consecutive bullet-ish lines (`-`, `•`, `*`) into a real `<ul>`, and linkifies bare `https?://` URLs into real `<a target="_blank">` elements via a split-on-regex pass (`linkify`).
+
+#### `latex-editor.tsx` — Resume Studio's CodeMirror wrapper
+`forwardRef` client component exposing an imperative `LatexEditorHandle` (`{setValue, getValue}` — `setValue` is how the chat's "Apply to editor" and the undo button replace the document content). CodeMirror 6 (`@codemirror/{state,view,commands,language,legacy-modes}`) configured with `StreamLanguage.define(stex)` for LaTeX syntax highlighting, `defaultKeymap` + `historyKeymap` + `history()` for standard editing/undo, and an `EditorView.theme` mapped onto the app's CSS custom properties (`--surface-secondary`, `--text`, `--text-tertiary`, an accent-tinted active-line highlight) so the editor reads as part of the same design system rather than a bolted-on widget. `onSaveShortcut`/`onBlur` callbacks let the parent (`latex-studio.tsx`) flush an explicit save.
+
+#### `latex-templates.ts` note
+See `src/lib/latex-templates.ts` in §3.4.2 — the built-in `JAKES_RESUME_TEMPLATE` lives there, not in a component.
+
+#### `new-resume-button.tsx`
+One-button flow: `createLatexResume()` (server action) → `router.push('/resume-studio/{id}')`. Used as the Resume Studio list page's header action.
+
+#### `latex-chat.tsx` — Resume Studio's chat assistant UI
+Renders the conversation (`ChatMessage[]`) and drives `chatLatex`. `splitLatex(content)` extracts a `<latex>...</latex>` block out of an assistant reply via regex, rendering the surrounding prose normally and the LaTeX itself in a bordered code block with three actions: **Copy** (clipboard, with a 1.5s "Copied" confirmation), **Preview** (`onPreviewLatex` — compiles the proposed source into the throwaway preview PDF without touching the editor or saved resume, see below), and **Apply to editor** (`onApplyLatex` — replaces the editor content immediately, with one-level undo). Empty-state hint suggests concrete asks ("tightening your Education section", "make my name John Doe"). Enter sends (Shift+Enter for a newline); a "Thinking…" bubble shows while the transition is pending.
+
+#### `latex-studio.tsx` — Resume Studio's editor page (the orchestrator)
+The full workspace: a top bar (name input, Undo-apply, Compile, Save-as-version, Delete) over a two-pane layout — `LatexEditor` on the left, a Preview/Chat tab switcher on the right.
+
+- **Autosave**: 1.5s debounce on every keystroke (`AUTOSAVE_MS`) via `updateLatexResume`; a manual save also flushes on the editor's blur or its save-shortcut callback, both showing a "Saved" toast; a small "Unsaved" label appears whenever `source !== savedSource`.
+- **Compile**: flushes any pending autosave first (so it always compiles the latest text), `POST /api/latex/compile {id}`, and on success sets `pdfUrl` + switches to the Preview tab; the compile log renders in a `<details>` that auto-opens only on a *fresh* failure in this session (`compileOk === false`) — a log loaded from the DB on page load is ambiguous (could be from the last success or a later failure) so it starts collapsed.
+- **Apply from chat** (`applyLatex`): snapshots the pre-apply source into `undoSlot` (one-level undo, a toast offers "Undo apply"), replaces the editor content, and persists immediately.
+- **Preview-before-apply** (the newest Resume Studio feature, §5i): `previewProposed(latex)` remembers the currently-shown `pdfUrl` in a ref, switches to the Preview tab, and `POST /api/latex/compile {id, source: latex}` (the `source` param routes to `compileLatexPreview` server-side, §3.4.2/§3.4.4) — **without** touching the editor's `source` state or calling `updateLatexResume`. While a proposal is open, a banner sits above the preview iframe ("Preview of a proposed change — not applied yet" / "Compiling preview…" / "Proposed change — didn't compile (see log)") with **Apply change** (→ `applyProposed`: applies the text to the editor via the normal `applyLatex` path, then triggers a *real* compile so the persisted PDF — the one "Save as version" reads — reflects it too) and **Dismiss** (→ `dismissProposed`: restores the previously-shown `pdfUrl` from the ref, clears the compile log/status, discards the proposal — the editor and saved resume were never touched).
+- **Save as resume version** → `saveLatexResumeAsVersion`; disabled until there's a `compiledKey` or a live `pdfUrl`.
+- **Delete** → confirm dialog → `deleteLatexResume` (which now also cleans up the throwaway preview key) → redirect to the list.
 
 ### 3.4.7 `src/app/globals.css` and `public/sw.js`
 See §7 (design system) for globals.css.
@@ -593,10 +745,27 @@ crontab:
 5. On successful insert of a non-suppressed posting: `inserted++` and `onNewPosting(id)` **unless `skipNotify`** (first poll of a new source backfills silently — "otherwise adding SimplifyJobs would fire hundreds of 'new posting' alerts at once").
 
 ### `src/notify.ts` — notification core
-- `getSettings()` — the settings row or hard defaults (America/New_York, 23→7, push+email on / sms off, includeNewGrad false).
-- `deliver(msg: {title, body, url, kind, postingId?, applicationId?})` — fans out to each **enabled** channel (push → `sendPush`, email → simple HTML with an "Open in Internships" link, sms → title+body+url text) and inserts one `notification_log` row **per successful channel** (failed sends leave no log record — a known observability gap, §9).
-- `onNewPosting(postingId)` — the new-posting entry point: bail if not active; `passesNotificationRules` gate (rules + new-grad setting); **`inQuietHours` → insert into `digest_queue` and stop**; else instant `deliver` "{company} — new internship" linking `/internships/{id}`.
-- `onSubmissionConfirmed(applicationId)` — "Application submitted ✓ · {company} — {roleTitle}" (kind `confirmation`) linking `/tracker`.
+Rewritten for the twice-daily-digest + company-watchlist overhaul (previously: quiet-hours-gated instant-or-digest for every channel uniformly; now: push/SMS stay instant-with-quiet-hours, email is batched into fixed digest slots except for watchlisted companies).
+
+- `getSettings()` — the settings row or hard defaults (`DEFAULTS`: America/New_York, 23→7, push+email on / sms off, includeNewGrad false, **`watchlistCompanies: []`, `digestHours: [8, 17]`, `lastDigestSentAt: null`**).
+- `toEmailPosting(p)` — maps a `postings` row (or the subset of columns needed) to the `EmailPosting` shape `email-template.ts` renders (id/company/title/url/locations/roleType/jobLevel/locationMode).
+- **`deliver(msg, opts?)`** — fans out to each **enabled** channel and inserts one `notification_log` row per successful channel (failed sends still leave no log record — §9). Two new capabilities added for the overhaul:
+  - `opts.only?: Channel[]` — restrict this call to a subset of channels (still additionally gated by the user's own channel prefs) — e.g. `onNewPosting`'s instant path passes `{only: ["push", "sms"]}` since email for a non-watchlisted posting goes to the digest queue instead.
+  - `opts.emailHtml?: string` — supply a pre-rendered Simplify-style HTML email (from `email-template.ts`) instead of the old plain-text-in-a-`<p>` fallback; when absent, `deliver` still falls back to the original minimal HTML (`<p>{body}</p><p><a href="{url}">Open in Internships</a></p>`).
+- **`onNewPosting(postingId)`** — the new-posting entry point, now channel-differentiated:
+  1. Bail if the posting isn't active, or `passesNotificationRules` (rules + new-grad setting) fails.
+  2. **Watchlisted company** (`isWatchedCompany`, `@tracker/shared`) → renders a rich single-posting email (`renderPostingEmail`) and `deliver`s it on **every** enabled channel **instantly, bypassing both the digest queue and quiet hours entirely** — "apply early" is the whole point of a watchlist entry.
+  3. **Everyone else**: if the email channel is enabled, the posting is queued into `digest_queue` (unconditionally — no longer only during quiet hours; see `send-digest.ts` below for the new flush trigger). Push and SMS, independently, still fire **instantly** via `deliver(msg, {only: ["push", "sms"]})` — but only if `inQuietHours` is false; during quiet hours those are simply skipped for this posting (no digest_queue catch-up for push/SMS — that queue is email-only now).
+- `onSubmissionConfirmed(applicationId)` — unchanged: "Application submitted ✓ · {company} — {roleTitle}" (kind `confirmation`) linking `/tracker`.
+
+### `src/email-template.ts` — Simplify-style HTML email rendering
+Table-based HTML with inline styles only (the one layout approach that survives most email clients), matching the visual language of the well-known Simplify Jobs digest emails. No dependencies. Exports `EmailPosting` (id/company/title/url/locations/roleType/jobLevel/locationMode), `renderDigestEmail(postings, appUrl)`, `renderPostingEmail(posting, appUrl)`.
+
+- **Logo strategy mirrors `company-logo.tsx`**: `logoDomain(url)` derives the employer's domain from the posting URL unless the host is a known job-board (`JOB_BOARD_HOSTS` — greenhouse/lever/ashby/workday/icims/smartrecruiters/workable/bamboohr/jobvite/taleo/successfactors/linkedin/indeed/jobright.ai/google), in which case it falls back to a colored letter tile. Tile color is a stable hash of the company name over a 7-color palette (`TILE_COLORS`) so the same employer always gets the same tile color across emails. With a domain, `logoCell` embeds `https://www.google.com/s2/favicons?domain=<d>&sz=64`.
+- `esc(s)` — minimal HTML-entity escaping (`&<>"`) applied to every piece of user/source-derived text before interpolation — this hand-rolled template has no JSX/React escaping safety net, so this function is what prevents a posting title containing `<`/`&` from breaking the email markup.
+- `card(posting, appUrl)` — one posting's row: logo · company + meta line (role-type label, location mode, first location) · Internship/New-Grad badge, then the bold role title below — the whole card links to `{appUrl}/internships/{id}`.
+- **`renderDigestEmail(postings, appUrl)`** — "💫 N new job(s) for you", up to 25 cards with a "…and N more — see all in the app" tail, one "Open Internships" CTA button. Subject: `"💫 N new internship(s)"`.
+- **`renderPostingEmail(posting, appUrl)`** — "⚡ {company} just posted", a single card, one "View & apply" CTA. Subject: `"⚡ {company} — new internship posted"`. This is what a watchlisted company's instant alert renders.
 
 ### `src/channels/push.ts`
 Web Push via the `web-push` lib. Lazy one-time VAPID configuration (`VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`, subject `mailto:NOTIFY_EMAIL_TO`); unconfigured → logs `[push] (unconfigured) would send: …` and returns false (all three channels share this dry-run-when-unconfigured pattern, which made local testing possible before any keys existed). Sends the JSON payload to **every** `push_subscriptions` row; on 404/410 (expired/revoked) **deletes that subscription row** (self-cleaning); other errors log and continue. Returns true if ≥1 delivery succeeded.
@@ -611,9 +780,11 @@ Twilio REST via `fetch`: Basic auth (base64 `sid:token`), form-encoded POST to `
 `conditionalFetch(url, prevCache, init?)` — the polling economics. Sets user-agent `internship-tracker (personal job-search tool)`; sends `If-None-Match`/`If-Modified-Since` from the source's stored `httpCache {etag, lastModified}`; **304 → `{status: 304, notModified: true}`** (near-zero cost — "this is what lets us poll every minute without hammering anyone"); otherwise captures fresh cache headers, throws on non-OK, returns `{status, notModified: false, body, cache}`.
 
 ### `src/sources/github.ts`
-Config `{repo, branch? = "dev", listingsPath?}`; fetches from `raw.githubusercontent.com/{repo}/{branch}/…`. Two parse modes:
+Config `{repo, branch? = "dev", listingsPath?, columns?}`; fetches from `raw.githubusercontent.com/{repo}/{branch}/…`. Two parse modes:
 - **`listingsPath` set** (the SimplifyJobs/vanshb03 path — `.github/scripts/listings.json`): parse the JSON array; keep rows with `active !== false && is_visible !== false` and company+title; url from `url || application_link` (rows without either are dropped); `postedAt` from unix `date_posted`; `terms` passthrough; `raw` carries `{sponsorship: mapSponsorship(...), listing: <full row>}` where `mapSponsorship`: `/offers sponsorship/i` → `sponsors`, `/citizenship|does not offer/i` → `citizens_only`, else `unknown` — this is the **only** source of sponsorship data in the system.
-- **README fallback** for repos without a listings file: parse the community-standard markdown table (`| Company | Role | Location | Link | Age |`): skips separator/header rows; strips bold/links/HTML from cells; **"↳" (or empty) company cells inherit the company from the row above**; link extracted from either an HTML anchor or a markdown link; rows containing 🔒 (closed) skipped; locations split on `<br>` or commas-not-inside-parentheses.
+- **README fallback** for repos without a listings file: parse the markdown table, defaulting to the community-standard column order (`| Company | Role | Location | Link | Age |`) but **overridable per-source via `config.columns`** (see below): skips separator/header rows; strips bold/links/HTML from cells; **"↳" (or empty) company cells inherit the company from the row above**; link extracted from either an HTML anchor or a markdown link (`LINK_RE`); rows containing 🔒 (closed) skipped; locations split on `<br>` or commas-not-inside-parentheses.
+
+**`parseColumnMap(spec)` — the per-source README column-map parser.** Added to onboard repos whose README table doesn't follow the SimplifyJobs-style layout (e.g. speedyapply puts the link in a "Posting" column at index 5; jobright-ai-style repos embed the apply link *inside* the role-title cell itself). `config.columns` is a free-text string like `"company=1,role=2,location=3,link=5"` — a comma-separated list of `key=1-based-cell-index` pairs, 1-based counting from the leading `|` of a table row. Any key omitted or malformed falls back to `DEFAULT_COLUMNS = {company: 1, role: 2, location: 3, link: 4}`. A field **can repeat an index** — e.g. `link=2` when the role cell itself carries the markdown apply link, which is exactly the jobright-ai case; `parseReadmeTable` strips markdown-link syntax from the role cell the same way it does the company cell, so the visible title never leaks link syntax even when `role` and `link` point at the same cell. `columns` has no effect on `listingsPath` repos (JSON has no column-order ambiguity). Exported (along with `parseReadmeTable`) for reuse/testing.
 
 Note: `GITHUB_TOKEN` from `.env.example` is **not used** by this poller — raw.githubusercontent.com needs no auth (the var was reserved for API-based polling that never became necessary).
 
@@ -632,7 +803,16 @@ Generic RSS/Atom via `fast-xml-parser` (`ignoreAttributes: false`), handling bot
 For each enabled source: dispatch by kind to the right poller (`pollOne` switch); `isFirstPoll = lastPolledAt === null` → `ingestPostings(..., {skipNotify: true})` (silent backfill). On success: update `lastPolledAt`, `httpCache = result.cache ?? old` (**preserving the cache on 304s**), clear `lastError`. On error: store `lastError` message (surfaced in the Settings UI), keep the old cache for the next attempt. Per-source try/catch — one broken source never blocks the others. Logs per-source ingest stats when something changed.
 
 ### `src/tasks/send-digest.ts` — job `send_digest` (cron: every 5 min)
-The quiet-hours digest flush: return immediately if still inside quiet hours; load `digest_queue` rows with `sentAt IS NULL`; fetch their postings and keep only still-`active` ones (postings that expired or were hidden overnight silently drop out); if any remain, one `deliver` of kind `digest`: "N new internships overnight" with a bullet list capped at 15 + "…and N more", linking `/internships`. Then **mark every queued row sent** (including the filtered-out ones — no retry loop for stale entries). Net behavior: the digest arrives within 5 minutes of the quiet-hours window ending.
+**Rewritten for the twice-daily digest.** No longer tied to quiet hours at all — it flushes at fixed clock-hour slots (`settings.digest_hours`, default `[8, 17]`, in `settings.timezone`) regardless of whether quiet hours are active.
+
+1. `digestSlotDue(now, timezone, digestHours, lastDigestSentAt)` (`@tracker/shared`, §3.2) — return immediately (no-op) unless the current hour is a configured slot **and** this exact slot hasn't already fired.
+2. **Stamp `settings.last_digest_sent_at = now()` immediately**, before doing any sending — the code comment: "so a slow send can't double-fire on the next tick." This is a deliberate at-most-once-per-slot guard, traded against the (accepted) risk that a mid-send crash could skip a slot's email entirely rather than retry it.
+3. Load `digest_queue` rows with `sentAt IS NULL`; if the queue is empty, log and return (an empty slot sends nothing, silently).
+4. Fetch the queued postings and keep only still-`active` ones (postings that expired or were hidden since queuing silently drop out — no email mentions them).
+5. If any remain: render `renderDigestEmail` (`email-template.ts`) and `deliver()` it **email-only** (`{only: ["email"]}`) — the code comment notes push/SMS already fired instantly when each posting first arrived (§ notify.ts `onNewPosting`), so the digest email is genuinely the *only* thing this task sends; it never re-delivers push/SMS.
+6. **Mark every queued row sent** regardless of whether it made the cut (including postings that expired/hid before the slot fired) — no retry loop for stale entries, matching the original digest's behavior.
+
+Net behavior: at most two digest emails per day (or however many hours are configured), collecting everything queued since the last slot — a sharp departure from the original "one digest after the quiet-hours window ends" model, decoupling the email cadence from quiet hours entirely.
 
 ### `src/tasks/send-reminders.ts` — job `send_reminders` (cron: every 5 min)
 Joins reminders × applications where `done = false AND notifiedAt IS NULL AND dueAt < now()`; delivers each as kind `instant` ("Reminder: {label}" / "{company} — {roleTitle}") linking `/tracker/{applicationId}`; stamps `notifiedAt` (exactly-once per reminder).
@@ -645,6 +825,26 @@ Payload `{applicationId}` → `onSubmissionConfirmed`. Enqueued from the web app
 
 ### `src/tasks/send-blocker-notice.ts` — job `send_blocker_notice` (enqueue-only)
 Payload `{applicationId, detail?}` → `deliver` kind `blocker`: "Auto-apply blocked — needs you" / "{company} — {roleTitle}: {detail ?? 'CAPTCHA or bot-check'}. Finish this one manually." linking `/tracker/{applicationId}`. Enqueued by `/api/assist/report` at the third blocked report.
+
+### `src/gmail-client.ts` — P2-M2 Gmail REST client + classifier
+Plain fetch throughout, matching the worker's no-SDK convention (`channels/*.ts`). Deliberately narrow surface:
+
+- **`listRecentMessageIds(accessToken, afterEpochSeconds)`** — `GET .../messages?q=after:{epoch}&maxResults=50`; returns just the ids, newest-first, capped at one page (50) per sync tick.
+- **`getMessageMeta(accessToken, id)`** — `GET .../messages/{id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`. **Never `format=full`** — the full email body never leaves Google's servers into this process. Returns `{id, from, subject, snippet}`, where `snippet` is Gmail's own short (~200 char) auto-generated preview, not anything this app constructs.
+- **`classifyStatusSignal({company, roleTitle, from, subject, snippet})`** — one Anthropic REST call (`claude-haiku-4-5-20251001`, `x-api-key` header, no SDK) per *candidate* message (i.e. only messages that already matched a tracked company — see the task below, not every inbox message). System prompt enumerates the six possible signals (`interview_invite`/`oa_invite`/`offer`/`rejection`/`confirmation`/`none`) with a description of each, and explicitly instructs: only reply `"high"` confidence when the email is clearly and specifically about *this* company/role, not a newsletter or a coincidental keyword match; default to `"low"`/`"none"` when unsure. No `ANTHROPIC_API_KEY` → `{signal: "none", confidence: "low"}` (silent no-op, same graceful-degradation pattern as every other AI feature in this app). The `from`/`subject`/`snippet` passed in are never returned, logged, or persisted by this function — they exist only in this one call's request body and the caller's local variables.
+
+### `src/tasks/sync-gmail-status.ts` — job `sync_gmail_status` (cron: every 15 min, P2-M2)
+Opt-in — the very first line reads `settings` and returns immediately if `gmailEnabled` is false or no `gmailRefreshToken` is stored (confirmed in testing: this path completes in ~1.5ms, effectively free when the feature is off).
+
+1. Compute the poll window: `since` = `gmailLastSyncAt` (minus a 5-minute overlap buffer, to tolerate clock skew — harmless because the matching below is idempotent) or, on the very first sync (`gmailLastSyncAt` is null), a 2-day lookback.
+2. `refreshGoogleAccessToken` (`@tracker/shared`) using `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` (**must also be set on the worker service** — historically web-only, since only web's NextAuth sign-in needed them) + the stored refresh token. A failure here (revoked grant, expired token) is logged and the task returns cleanly — it does not crash the worker process (verified directly: an invalid token produces a caught, logged error and a normal `Completed task ... with success` from graphile-worker).
+3. Load every tracked application **except** ones already `stage = 'rejected'` (nothing further to detect there) — this is the candidate match set.
+4. `listRecentMessageIds` for the window, then for each id: `getMessageMeta`, then a cheap local pre-filter — does `normalizeCompany(application.company)` appear as a substring of the lowercased `from + subject`? Only messages that pass this filter (i.e. plausibly relate to a *specific* tracked application) get escalated to a Haiku `classifyStatusSignal` call; everything else costs nothing beyond the one metadata fetch.
+5. A `signal !== "none"` **and** `confidence === "high"` result maps to a target stage: `confirmation→applied`, `oa_invite→assessment`, `interview_invite→interviewing`, `offer→offer`, `rejection→rejected`. The stage only moves if `target === "rejected"` (always allowed — an offer can still be rescinded) **or** the target ranks strictly further along the fixed 7-stage order than the application's current stage — so a false-positive "confirmation" detected on an application already at `interviewing` is silently ignored rather than downgrading it. (Verified with 7 hand-checked forward/no-op/rejection-override cases.)
+6. On an accepted transition: updates `stage`, stamps `appliedAt` if unset and the target isn't `saved`/`in_progress`, and **prepends** (never overwrites) a short synthesized note like `[Gmail: interview invite detected, 7/12/2026]` to the application's existing `notes` — the from/subject/snippet text itself is discarded at this point and never written to the database. Then calls `deliver()` (kind `instant`) on the normal channels so the user is alerted the same way any other status change would notify them.
+7. Always stamps `settings.gmailLastSyncAt = now()` at the end of the run (even if nothing matched), advancing the cursor for next time.
+
+The stage-order array (`saved/in_progress/applied/assessment/interviewing/offer/rejected`) is duplicated locally in this file rather than imported — `schema.ts` only exports the Drizzle enum object, not a plain array, matching the same reasoning as `analytics/page.tsx`'s local `STAGE_LIST` (§3.4.5): a worker file can't import from `apps/web` anyway, and re-deriving seven literal strings is simpler than reshaping an export just for this.
 
 ---
 
@@ -807,7 +1007,8 @@ Postgres, managed by Drizzle. Two singleton tables use a `boolean` primary key d
 | `drafts` | jsonb? (migration 0002) | `{coverLetter?, answers?: [{prompt, answer}]}` — the user-reviewed raw text; *"what the extension fills into portals."* |
 | `stage` | enum default saved, indexed | The 7-stage pipeline. |
 | `resume_id` | FK resumes, set null | Per-application resume choice; packet/resume routes fall back to default→newest. |
-| `auto_apply_approved_at` | timestamptz? (migration 0004) | *"Set only via the explicit per-application auto-apply opt-in; cleared on any mode change away from 'auto'."* The packet exposes it as `autoApply.approved`. |
+| `auto_apply_approved_at` | timestamptz? (migration 0004) | *"Set only via the explicit per-application auto-apply opt-in; cleared on any mode change away from 'auto'."* The packet exposes it as `autoApply.approved`, but only when the **master switch** (`settings.auto_apply_enabled`) is also on. |
+| `prep` | jsonb `InterviewPrep`? (migration 0006) | Cached interview/skill-prep guidance (P2-M3) — `{focusAreas, practiceProblems, projectIdeas, resources, behavioral}` (the `InterviewPrep` TS interface lives in `packages/db/src/schema.ts` itself, next to the table, and is re-exported by `lib/interview-prep.ts`). Generated by `generatePrep()`, regenerable, useful in every mode. |
 | `blocker_retries` | int default 0 (migration 0004) | Cross-session blocked-attempt counter; *"notifies at 3"*; reset by re-approval; ≥3 also surfaces in the dashboard Needs-attention panel. |
 | `applied_at` | timestamptz? | Stamped on first transition into applied (manual or auto) — guards receipt/side-effect idempotence. |
 | `notes`, `created_at`, `updated_at` | | `updated_at desc` ordering is what makes packet matching prefer recently-touched applications. |
@@ -825,7 +1026,7 @@ Postgres, managed by Drizzle. Two singleton tables use a `boolean` primary key d
 `id` boolean PK default true; `data` jsonb — the flat string map maintained by ProfileForm (12 profile fields + 10 application-answer fields, see §3.4.6); `updated_at`. Consumed verbatim by the packet route → content.js rule tables.
 
 ### `settings` — single-row app settings
-`id` boolean PK true; `timezone` (default America/New_York — was LA in migration 0000, fixed in 0002); `quiet_hours_start` 23 / `quiet_hours_end` 7; `channels` jsonb default `{push: true, email: true, sms: false}` (**SMS off by default** — rule #6); `include_new_grad` false (gates both notifications and the default listing view); `notification_rules` jsonb `{}` (shape `NotificationRules`; default was erroneously `[]` in 0000, fixed in 0001); `storage_destination` default inapp; `updated_at`.
+`id` boolean PK true; `timezone` (default America/New_York — was LA in migration 0000, fixed in 0002); `quiet_hours_start` 23 / `quiet_hours_end` 7 (as of the notification overhaul, quiet hours gate **only push/SMS**, never email); `channels` jsonb default `{push: true, email: true, sms: false}` (**SMS off by default** — rule #6); `include_new_grad` false (gates both notifications and the default listing view); `notification_rules` jsonb `{}` (shape `NotificationRules`; default was erroneously `[]` in 0000, fixed in 0001); `storage_destination` default inapp; `auto_apply_enabled` boolean default **false** (migration 0007) — the master Auto-Apply kill switch (rule #7 in §1); `watchlist_companies` jsonb `[]` (migration 0008) — companies that alert **instantly** on every channel, bypassing the digest and quiet hours (matched via `normalizeCompany`, `isWatchedCompany` in `@tracker/shared`); `digest_hours` jsonb default `[8, 17]` (migration 0008) — the clock hours (0–23, in `timezone`) at which the batched email digest flushes; `last_digest_sent_at` timestamptz? (migration 0008) — guards against double-sending within one digest slot (`digestSlotDue`); `gmail_enabled` boolean default **false** (migration 0009) — P2-M2's own opt-in gate, separate from the Auto-Apply switch; `gmail_refresh_token` text? (migration 0009) — a real secret, a long-lived `gmail.readonly` OAuth grant obtained via `/api/gmail/connect`→`callback` (never the sign-in flow); `gmail_connected_email` text? — display-only, which Gmail account is connected; `gmail_last_sync_at` timestamptz? — the cursor `sync-gmail-status.ts` polls forward from; `updated_at`.
 
 ### `push_subscriptions`
 `id`, `endpoint` (**unique** — subscribe is idempotent), `keys` jsonb `{p256dh, auth}`, `created_at`. One row per browser/device; push fans out to all; 404/410 responses self-delete the row.
@@ -837,7 +1038,21 @@ Postgres, managed by Drizzle. Two singleton tables use a `boolean` primary key d
 `id`, `posting_id` (FK cascade), `queued_at`, `sent_at?`. Populated by `onNewPosting` during quiet hours; flushed (marked sent) by `send_digest` after the window ends.
 
 ### `mode_decisions` — recommendation-vs-choice history
-`id`, `application_id` (FK cascade), `recommended`, `chosen`, `signals` jsonb (the recommendation's `{ats, atsTier, deadline}`), `decided_at`. Written by `setApplicationMode` and `approveAutoApply`; read by `recommendMode` to learn per-ATS override patterns (≥2 overrides on an ATS → follow the user).
+`id`, `application_id` (FK cascade), `recommended`, `chosen`, `signals` jsonb (the recommendation's `{ats, atsTier, deadline}`), `decided_at`. Written by `setApplicationMode` and `approveAutoApply`; read by `recommendMode` to learn per-ATS override patterns (≥2 overrides on an ATS → follow the user). Also the source of the Analytics "Recommendation vs. your choice" card (§3.4.5).
+
+### `latex_resumes` — Resume Studio (migration 0005)
+| Column | Type | Purpose |
+|---|---|---|
+| `id` | serial PK | |
+| `name` | text | Display name, editable inline in the studio's top bar. |
+| `source` | text | The full `.tex` document — CodeMirror's single source of truth, autosaved here every 1.5s. |
+| `compiled_key` | text? | Upload key of the last **successfully persisted** compile, e.g. `latex-resumes/12.pdf` (`compiledKeyFor(id)`). Not touched by preview compiles. |
+| `compile_log` | text? | Tail (last 4000 chars) of the most recent compile's combined stdout+stderr, for inline error display. |
+| `last_compiled_at` | timestamptz? | Always written together with `compiled_key`. |
+| `chat_history` | jsonb `[]` | `{role: "user"\|"assistant", content}[]`, capped at the last 30 turns server-side (`MAX_STORED_MESSAGES`); the model sees only the last 12 (`MAX_CONTEXT_MESSAGES`) per turn. |
+| `created_at`, `updated_at` | | |
+
+No column tracks the throwaway preview PDF (`latex-resumes/<id>-preview.pdf`, `previewKeyFor(id)`) — it's a pure filesystem side-effect of `compileLatexPreview`, looked up by convention from the id rather than stored, and cleaned up best-effort on `deleteLatexResume`.
 
 ## graphile-worker job flow
 
@@ -858,19 +1073,20 @@ The web app deliberately has **no graphile-worker dependency** — it enqueues b
 
 # 5. End-to-end flows
 
-## (a) Posting discovered → deduped/tagged → notified instantly or digested
+## (a) Posting discovered → deduped/tagged → notified (instant push/SMS, watchlist email, or the twice-daily digest)
 
 1. **Cron tick** (`apps/worker/src/index.ts`, `* * * * *`) runs `poll_sources`.
-2. `tasks/poll-sources.ts` iterates enabled `sources`; each kind dispatches to its poller (`sources/github.ts`, `sources/ats.ts`, `sources/rss.ts`), all built on `sources/http.ts` `conditionalFetch` — unchanged sources return 304 and contribute zero postings.
+2. `tasks/poll-sources.ts` iterates enabled `sources`; each kind dispatches to its poller (`sources/github.ts` — including the per-source README column-map override, see §3.5 — `sources/ats.ts`, `sources/rss.ts`), all built on `sources/http.ts` `conditionalFetch` — unchanged sources return 304 and contribute zero postings.
 3. Poller output (`NormalizedPosting[]`) → `ingest.ts ingestPostings()`:
    - `isRelevantRole` gate (`packages/shared/src/tagging.ts`) drops non-CS titles;
    - `dedupeHash` (`packages/shared/src/index.ts`) — an existing hash appends to `seenIn` and stops (never re-notifies);
    - applied-role suppression (normalized company|title vs all applications) inserts as `hidden` silently;
    - insert with classifier fallbacks (`classifyRole/Level/LocationMode`, `extractTerms`, sponsorship from SimplifyJobs raw);
    - new + not suppressed + not first-poll-backfill → `notify.ts onNewPosting(id)`.
-4. `onNewPosting`: `passesNotificationRules` (`packages/shared/src/rules.ts` — new-grad gate, role/mode/company/keyword rules) →
-   - **inside quiet hours** (`inQuietHours` in the user's timezone): insert into `digest_queue`, done (see flow f);
-   - **otherwise**: `deliver()` fans out to enabled channels — `channels/push.ts` (all subscriptions; payload rendered by `apps/web/public/sw.js` with a View action deep-linking `/internships/{id}`), `channels/email.ts` (Resend), `channels/sms.ts` (Twilio if opted in) — logging each success to `notification_log`.
+4. **`onNewPosting`** (rewritten for the notification overhaul — channels now diverge): `passesNotificationRules` (`packages/shared/src/rules.ts` — new-grad gate, role/mode/company/keyword rules) gates everything below; then:
+   - **Watchlisted company** (`isWatchedCompany`, matched via `normalizeCompany`) → a rich Simplify-style single-posting HTML email (`email-template.ts renderPostingEmail`) plus push/SMS, **all instantly, on every enabled channel, bypassing both the digest queue and quiet hours** — "apply early" for the companies that matter most.
+   - **Everyone else**: if email is enabled, the posting is queued into `digest_queue` **unconditionally** (not just during quiet hours anymore — see flow (f), which now flushes on a fixed twice-daily schedule instead). Push and SMS still fire **instantly**, independent of the email path, unless `inQuietHours` — in which case they're simply skipped for this posting (there's no catch-up queue for push/SMS; only email is ever queued).
+   - Every successful send (any channel, any path) logs one `notification_log` row (see `channels/push.ts` for the delivery mechanics — payload rendered by `apps/web/public/sw.js` with a View action deep-linking `/internships/{id}`).
 
 ## (b) Track → recommendation → Assist → drafts → documents in storage
 
@@ -892,7 +1108,7 @@ The web app deliberately has **no graphile-worker dependency** — it enqueues b
 ## (d) Full Auto-Apply
 
 1. **Opt-in**: on `/tracker/{id}`, clicking the "Full Auto-Apply" mode button does *not* set the mode — it opens `AutoApplyOptin` (`components/auto-apply-optin.tsx`): readiness gate (saved drafts + resume required), full preview of profile fields / resume / cover letter / answers, and the explicit checkbox. **Approve** → `approveAutoApply()` (`actions/applications.ts`) — the only code path to `mode: "auto"` — stamping `autoApplyApprovedAt` and resetting `blockerRetries`. Revocable anytime (Revoke → `setApplicationMode(id, null)` clears the approval; so does switching to any other mode).
-2. **Extension**: packet now returns `mode: "auto"`, `autoApply.approved: true` → purple "Auto-Apply now" ("This will fill AND submit — no final click. Blockers stop it safely.").
+2. **Extension**: `api/assist/packet/route.ts` first checks the **master Auto-Apply kill switch** (`settings.auto_apply_enabled`, default off, migration 0007) — if it's off, the response's `mode` is silently downgraded from `"auto"` to `"assist"` (and `autoApply.approved` computed from that downgraded mode), so the extension never even learns this application is really in Auto-Apply; it just shows the normal Assist "Fill this page" UI. Only when the switch **and** the per-application `autoApplyApprovedAt` are both set does the packet return `mode: "auto"`, `autoApply.approved: true` → purple "Auto-Apply now" ("This will fill AND submit — no final click. Blockers stop it safely."). The switch is a global, one-click way to freeze all auto-submitting instantly without touching any individual application's approval (Settings → Automation, `components/auto-apply-settings.tsx`).
 3. **Attempt loop** (popup): up to 3 attempts, 0/5/15s backoff with countdown. Each attempt: inject → `__trackerAutoApply` → **blocker check before touching the form** (recaptcha/hcaptcha/turnstile/Cloudflare selectors + "verify you are human" text) → fill → `pending` outcome hands control back for Haiku resolution → required-still-unresolved ⇒ `incomplete` (no submit; orange highlights; popup says "downgraded to Assist behavior") → else `__trackerFinishAutoApply` re-checks blockers and the `__trackerUnresolvedRequired` gate, clicks the located submit control, waits 2500ms, reports `submitted`.
 4. **Report** (`POST /api/assist/report`, `api/assist/report/route.ts`):
    - `submitted` → stage `applied` + `appliedAt` + `onApplied()` → **receipt path**: SQL `add_job('send_confirmation')` → worker `send-confirmation.ts` → `onSubmissionConfirmed` → "Application submitted ✓" on all channels; plus repost hiding of matching active postings.
@@ -905,11 +1121,58 @@ The web app deliberately has **no graphile-worker dependency** — it enqueues b
 2. Worker cron `send_reminders` (every 5 min) selects `done = false AND notified_at IS NULL AND due_at < now()` joined to applications, delivers "Reminder: {label} / {company} — {roleTitle}" (kind `instant`) linking `/tracker/{applicationId}`, and stamps `notified_at` — exactly one notification per reminder, ever.
 3. Overdue-and-undone reminders additionally surface in the dashboard Needs-attention panel until checked off.
 
-## (f) Quiet-hours digest
+## (f) Twice-daily email digest + instant company watchlist
 
-1. During quiet hours (default 23:00–07:00 in `settings.timezone`, window may wrap midnight), `onNewPosting` diverts each rule-passing posting into `digest_queue` instead of delivering.
-2. Every 5 minutes `send_digest` checks `inQuietHours`; the first tick **after** the window ends (≤5 min lag) collects all unsent queue rows, drops postings no longer active, and sends one kind-`digest` message: "N new internships overnight" + up to 15 bullets ("• Company — Title (Location)") + "…and N more", linking `/internships`.
-3. All queued rows are marked sent regardless (stale entries never retry). Quiet hours affect **only** instant posting alerts — confirmations, blockers, and reminders deliver whenever they occur.
+Replaces the original "one digest after the quiet-hours window ends" design. Email is now **always** batched (never sent one-posting-at-a-time) except for the watchlist bypass; quiet hours no longer govern email at all.
+
+1. Every rule-passing, non-watchlisted posting's email is queued into `digest_queue` the moment it's ingested (flow a) — regardless of time of day.
+2. Every 5 minutes, `send_digest` calls `digestSlotDue(now, timezone, settings.digestHours, settings.lastDigestSentAt)` (`@tracker/shared`) — true only on the first tick inside one of the configured send hours (default **8am and 5pm**, editable in Settings → Notifications → "Email digest"). Everything else is a no-op.
+3. On a due slot: **stamp `settings.last_digest_sent_at = now()` immediately** (so a slow send can't double-fire the same slot on the next 5-minute tick), then collect all unsent `digest_queue` rows, drop postings no longer active, and — if any remain — render one Simplify-style HTML email (`email-template.ts renderDigestEmail`): "💫 N new job(s) for you", up to 25 posting cards + "…and N more — see all in the app", one "Open Internships" button. Delivered **email-only** (push/SMS already fired instantly per-posting in flow a).
+4. All queued rows are marked sent regardless of whether they made the cut (stale/expired entries never retry).
+5. **The watchlist bypass** (`isWatchedCompany`) skips this queue entirely: a watchlisted company's posting gets its own rich single-posting email (`renderPostingEmail`) plus push/SMS, instantly, the moment it's ingested — never batched, never delayed by a digest slot, never suppressed by quiet hours.
+6. **Quiet hours** (default 23:00–07:00 in `settings.timezone`, window may wrap midnight, via `inQuietHours`) now affect **only push and SMS** for non-watchlisted postings — during the window those two channels are simply skipped for that posting (no catch-up queue), while the email digest keeps accumulating and firing at its fixed slots regardless. Confirmations, blockers, and reminders are unaffected by quiet hours entirely, as before.
+
+## (g) Screenshot Intake: story screenshot → posting
+
+A manual, vision-assisted supplement to the polled discovery pipeline — for postings that only ever surface as a social-media screenshot (the original motivating case: zero2sudo's Instagram stories, see §9 roadmap history).
+
+1. User opens `/intake` and drops/selects a screenshot (PNG/JPG/WebP, ≤10MB) into `components/screenshot-intake.tsx`.
+2. On selection, `extractFromScreenshot(formData)` (`app/actions/intake.ts`) base64-encodes the image and calls `lib/screenshot-extract.ts extractPostingFromScreenshot` — **claude-haiku-4-5-20251001** with an `image` content block, instructed to extract `{company, title, url?, locations?, term?, notes?}` and, critically, to **never fabricate a URL** ("ONLY include if a full or near-complete URL is actually legible... never guess, complete, or construct one from the company name").
+3. The extraction (or, on any failure, an empty form + an explanatory message) populates an editable confirmation form — **nothing is saved yet**. The user can edit every field, including leaving the URL blank if the screenshot said "link in bio."
+4. **Confirm & add posting** → `createPostingFromIntake(input)` runs the confirmed fields through the **same** normalize/dedupe/tag pipeline the worker's `ingest.ts` uses (`classifyRole/Level/LocationMode`, `extractTerms`, `dedupeHash`), so a screenshot-sourced posting is indistinguishable from a polled one once created. A `dedupeHash` collision with an existing posting returns that posting instead of inserting a duplicate (status `"existing"`) — e.g. a poller had already caught the same company+role+location, or this is a second screenshot of the same story.
+5. The result screen offers **View posting** and **Track it** (`trackPosting`, the same one-click track used everywhere else) — from here the posting behaves identically to a polled one: it can be Tracked, notified about (though it obviously won't re-notify since it was manually created), etc. The screenshot image itself is discarded after step 2 — never written to disk or the DB. Postings created this way commonly have an empty `url`, which is why the Apply link is conditionally hidden on the card, list row, and detail page (§3.4.6).
+
+## (h) Interview & skill-prep generation (P2-M3)
+
+1. On any application detail page (`/tracker/{id}`, any mode), `PrepPanel` shows a "Generate prep" button if `applications.prep` is still null.
+2. `generatePrep(applicationId)` (`app/actions/prep.ts`) assembles `PrepContext` (application company/role, linked posting's description + roleType, and `profile.data` for personalization) and calls `lib/interview-prep.ts generateInterviewPrep` — **claude-sonnet-5**, instructed to ground every suggestion in the actual posting, personalize to the profile, and **never fabricate a specific problem link/ID** (practice problems and resources are referenced by well-known name only, e.g. "Two Sum", "NeetCode 150").
+3. The parsed `InterviewPrep` (`{focusAreas, practiceProblems, projectIdeas, resources, behavioral}`) is persisted onto `applications.prep` (cached like `mode_recommendation` — generated once, cheap to view repeatedly, regenerable on demand) and rendered: practice problems link out to a **LeetCode problemset search** for their name (`lib/neetcode.ts leetcodeSearchUrl` — never a guessed slug) alongside a header link to the canonical **NeetCode 150** roadmap.
+4. **Regenerate** re-runs the same path and overwrites the cached `prep` — no history is kept, only the latest generation.
+5. Without `ANTHROPIC_API_KEY`, `generateInterviewPrep` returns a clearly `[PLACEHOLDER]`-labeled but structurally valid `InterviewPrep` so the whole generate/cache/regenerate flow is testable offline; a genuine parse failure of a real model response (as opposed to a missing key) instead throws, so the client can toast "try again" rather than showing a misleading "API key not configured" message.
+
+## (i) Resume Studio: preview a chat-proposed change before applying it
+
+Added on top of the pre-existing Resume Studio flow (write LaTeX → Compile → PDF preview → Chat → apply/undo → Save as resume version). Previously, clicking "Apply to editor" on a chat-suggested `<latex>` block replaced the editor content immediately (with one-level undo as the only safety net) — there was no way to see the result *before* committing.
+
+1. In `components/latex-chat.tsx`, an assistant reply containing a `<latex>...</latex>` block now renders three actions instead of two: **Copy**, **Preview** (new), **Apply to editor**.
+2. **Preview** → `latex-studio.tsx previewProposed(latex)`: switches to the Preview tab, remembers the currently-displayed `pdfUrl` in a ref (so it can be restored), and `POST /api/latex/compile {id, source: latex}` — the presence of a `source` field in the request body is what routes the server to `lib/latex-compile.ts compileLatexPreview(id, source)` instead of the normal `compileLatexResume(id)`.
+3. `compileLatexPreview` runs the proposed source through the **same Tectonic sandbox** (`runTectonic` — temp dir, `execFile`, 45s timeout, no shell string) but writes the resulting PDF to a **separate throwaway key** (`latex-resumes/<id>-preview.pdf`, `previewKeyFor(id)`) and touches **neither** the row's `source` column nor its real `compiledKey` — the saved resume and the PDF that "Save as resume version" would copy are completely unaffected.
+4. The editor shows a banner over the (now proposal-preview) iframe: "Preview of a proposed change — not applied yet" with **Apply change** / **Dismiss** actions.
+   - **Apply change** → applies the proposed text to the editor via the normal `applyLatex` path (one-level undo snapshot taken, autosaved), then immediately triggers a **real** compile so the persisted `compiledKey`/PDF catches up to match what's now in the editor.
+   - **Dismiss** → restores the `pdfUrl` that was showing before the preview started, clears the compile log/status; the editor and the saved resume were never touched at any point.
+5. `api/latex/pdf/[id]/route.ts` serves either PDF from the same endpoint based on a query flag: `?preview=1` streams `previewKeyFor(id)`; without it, the persisted `compiledKey`.
+6. **Cleanup**: `deleteLatexResume(id)` now also best-effort-deletes the preview key (`deleteUpload(previewKeyFor(id))`, a no-op if the resume was never previewed) alongside the persisted compiled PDF, so a deleted resume doesn't leave an orphaned preview file on the volume.
+
+## (j) Gmail status monitoring — opt-in inbox → tracker stage (P2-M2)
+
+Off by default (`settings.gmailEnabled = false`); a deliberately **separate OAuth consent flow from sign-in**, so nothing about this feature widens what the sign-in flow can access.
+
+1. **Connect**: Settings → Gmail status monitoring → "Connect Gmail" (`components/gmail-settings.tsx`, a plain `<a>` to `api/gmail/connect/route.ts`, which redirects to Google requesting only `gmail.readonly`). Google redirects back to `api/gmail/callback/route.ts`, which CSRF-checks the state cookie, exchanges the code, and stores **only** `gmailRefreshToken` + `gmailConnectedEmail` in `settings` (never an access token, never anything from the inbox).
+2. **Sync** (`apps/worker/src/tasks/sync-gmail-status.ts`, cron every 15 min, §3.5): no-ops instantly unless connected. Refreshes an access token from the stored refresh token, lists Gmail message ids received since the last sync (or a 2-day lookback on the first-ever run), and for each fetches **metadata only** — From, Subject, and Gmail's own short `snippet` — via `gmail-client.ts`, never the full message body.
+3. **Match**: each message's From+Subject is checked for a normalized-company-name match against every tracked application not already `rejected`. Only actual matches are escalated to classification — most inbox mail costs nothing beyond the one cheap metadata fetch.
+4. **Classify**: a match goes to `classifyStatusSignal` (Haiku) with the company/role + From/Subject/snippet, returning one of `interview_invite`/`oa_invite`/`offer`/`rejection`/`confirmation`/`none` plus a `high`/`low` confidence. Only `high`-confidence, non-`none` results act — the classifier is explicitly instructed to prefer `low`/`none` over a guess, and the company-match pre-filter already screens out most false positives (a tech newsletter that happens to mention "interview" scores `none` because it isn't *about* the specific tracked company/role).
+5. **Act**: the signal maps to a target stage; the application's stage only moves if the target is `rejected` (always allowed — offers can be rescinded) or the target is strictly further along the fixed pipeline order than the application's current stage — so a stray signal can never downgrade or override more-advanced state the user (or a better signal) already set. On an accepted move: stage updates, `appliedAt` stamps if unset, a short note like `[Gmail: interview invite detected, 7/12/2026]` is **prepended** to (never replaces) the application's existing notes, and the normal notification channels fire. **The email's From/Subject/snippet are discarded at this point and never written to the database** — only the classification's consequence (a stage + a short synthesized note) persists.
+6. **Disconnect**: Settings → Disconnect (`disconnectGmail()`) best-effort revokes the grant with Google and clears the stored token/email/cursor — the feature returns to fully off, same as it was before ever connecting.
 
 ---
 
@@ -921,7 +1184,7 @@ Dev values live in git-ignored `apps/web/.env.local` (web, read by Next) and roo
 |---|---|---|---|
 | `DATABASE_URL` | ✔ | `packages/db/src/client.ts`, `drizzle.config.ts`, `apps/worker/src/index.ts` | Postgres connection. Both Railway services reference the Postgres service (`${{Postgres.DATABASE_URL}}`). Local default `postgres://localhost:5432/internship_tracker`. |
 | `AUTH_SECRET` | ✔ | next-auth (implicit) | JWT session signing. `openssl rand -base64 32`. Web only. |
-| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | ✔ | next-auth Google provider (implicit env convention) | OAuth client from console.cloud.google.com; redirect URIs registered for prod domain + localhost. |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | ✔ | next-auth Google provider (implicit env convention); **also `api/gmail/connect`+`callback` (web) and `sync-gmail-status.ts` (worker, P2-M2)** | OAuth client from console.cloud.google.com; redirect URIs registered for prod domain + localhost, **plus a second pair for `/api/gmail/callback`** (a separate consent flow from sign-in). Same client reused for both flows — no second OAuth client needed. As of P2-M2, **must also be set on the worker service**, not just web (the worker needs it to refresh the stored Gmail token). |
 | `ALLOWED_EMAIL` | ✔ | `src/auth.ts` signIn callback | The single allowed Google account (joshuamichael365@gmail.com). Unset → nobody can sign in. |
 | `AUTH_DISABLED` | ✔ | `src/auth.ts` | Dev-only bypass; hard-disabled when `NODE_ENV === "production"`. "NEVER set this in production." |
 | `AUTH_URL` | ✘ (deploy-time) | next-auth (env convention; aliased from `NEXTAUTH_URL`) | **The behind-proxy gotcha (§8):** on Railway the app sits behind a reverse proxy, and Auth.js's inferred origin broke the Google OAuth callback — the fix was setting `AUTH_URL=https://web-production-64a44.up.railway.app` explicitly in the Railway web-service variables. Not referenced anywhere in repo source (it's consumed inside next-auth), hence easy to miss. |
@@ -939,10 +1202,12 @@ Dev values live in git-ignored `apps/web/.env.local` (web, read by Next) and roo
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | ✔ | **nobody** | Planned R2 storage backend (see `lib/storage.ts` docstring) that was superseded by the Railway volume. Unused. |
 | `GDRIVE_CLIENT_ID` / `GDRIVE_CLIENT_SECRET` | ✔ | `lib/gdrive.ts` | Google Drive refresh-token flow. |
 | `GDRIVE_REFRESH_TOKEN` | ✘ | `lib/gdrive.ts` | Third leg of the Drive credentials (minted via OAuth playground per DEPLOYMENT.md); all three required for `driveConfigured()`. |
+| `TECTONIC_PATH` | ✘ (Railway-only) | `lib/latex-compile.ts` (`runTectonic`) | Absolute path to the Tectonic binary; falls back to bare `"tectonic"` on `PATH` (works for a Homebrew-installed local dev binary). In prod, Tectonic isn't in the base image's apt repos, so it's fetched during the Railway build into `/app/bin/tectonic` and this var points at it (see DEPLOYMENT.md / CLAUDE.md §8). |
+| `TECTONIC_CACHE_DIR` | ✘ (Railway-only) | `lib/latex-compile.ts` (`runTectonic`, as `XDG_CACHE_HOME`) | Where Tectonic caches downloaded LaTeX packages between compiles; set to a path on the Railway volume (`/data/tectonic-cache`) so the cache survives deploys — first compile after a fresh cache is ~10–20s, then ~1s. |
 | `RAILPACK_*` | ✘ | Railway build system | Railpack (Railway's builder) configuration variables set in the Railway dashboard, not in repo code — used to pin the Node/pnpm build behavior for the two services. No source file reads them; they exist only at the platform layer alongside Railway's auto-injected `RAILWAY_*` vars. |
 | `NODE_ENV` | — | `auth.ts`, `client.ts` | Production disables the auth bypass and the global DB-client cache. |
 
-**External services summary:** Railway (hosting: web + worker + Postgres + volume), Google Cloud (OAuth sign-in; optional Drive API), Anthropic API (drafting/parsing/matching), Resend (email), Twilio (SMS, opt-in, not yet configured), Google favicon service (company logos, unauthenticated), raw.githubusercontent.com + public ATS APIs (Greenhouse/Lever/SmartRecruiters/Workday) for discovery.
+**External services summary:** Railway (hosting: web + worker + Postgres + volume), Google Cloud (OAuth sign-in; optional Drive API; **Gmail API for P2-M2 status monitoring, opt-in, read-only**), Anthropic API (drafting/parsing/matching/prep/screenshot-extract/Gmail-classification), Resend (email), Twilio (SMS, opt-in, not yet configured), Google favicon service (company logos, unauthenticated), raw.githubusercontent.com + public ATS APIs (Greenhouse/Lever/SmartRecruiters/Workday) for discovery.
 
 ---
 
@@ -1015,7 +1280,7 @@ pnpm dev               # web :3000 (Turbopack) + worker, in parallel
 | Service | Root | Start | Key vars |
 |---|---|---|---|
 | **web** | monorepo, filtered | `pnpm --filter web build` / `pnpm --filter web start` | `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID/SECRET`, **`AUTH_URL`**, `ALLOWED_EMAIL`, `EXTENSION_TOKEN`, `ANTHROPIC_API_KEY`, `VAPID_PUBLIC_KEY`, `APP_URL`, `UPLOAD_DIR=/data/uploads` (+ volume at `/data`) |
-| **worker** | monorepo, filtered | `pnpm --filter worker start` (tsx, no build) | `DATABASE_URL`, `APP_URL`, `VAPID_PUBLIC_KEY/PRIVATE_KEY`, `RESEND_API_KEY`, `NOTIFY_EMAIL_TO`, `ANTHROPIC_API_KEY`, `TWILIO_*` (pending) |
+| **worker** | monorepo, filtered | `pnpm --filter worker start` (tsx, no build) | `DATABASE_URL`, `APP_URL`, `VAPID_PUBLIC_KEY/PRIVATE_KEY`, `RESEND_API_KEY`, `NOTIFY_EMAIL_TO`, `ANTHROPIC_API_KEY`, `AUTH_GOOGLE_ID/SECRET` (P2-M2 Gmail token refresh — new requirement, not needed before this feature), `TWILIO_*` (pending) |
 | **Postgres** | managed | — | referenced by both via `${{Postgres.DATABASE_URL}}`; also hosts the `graphile_worker` schema (the inter-service queue) |
 
 Deploys trigger from pushes to GitHub `main`. The `/data` volume makes uploads/documents survive deploys; the DB carries everything else.
@@ -1055,16 +1320,23 @@ Auth.js v5 normally infers its own origin from request headers. Behind Railway's
 8. **README-table parsing depends on the community-standard column order** (Company | Role | Location | Link | Age) and the default branch name `dev` — repos deviating from the SimplifyJobs conventions need explicit config.
 9. **Minor code inconsistencies:** `enqueueConfirmation` in `actions/settings.ts` is exported but unreferenced (the live path is `onApplied`); `.env.example` omits `EXTENSION_TOKEN`, `GDRIVE_REFRESH_TOKEN`, `RESEND_FROM`, `APP_URL`, `UPLOAD_DIR`, `AUTH_URL`; `GITHUB_TOKEN` and all four `R2_*` vars are declared but read by nothing (the R2 storage backend was planned in `lib/storage.ts`'s docstring and superseded by the Railway volume); `apps/web/pnpm-workspace.yaml` is a stray tool artifact, not a workspace root; `apps/web/README.md` is untouched create-next-app boilerplate. The ingest suppression key-set is rebuilt per source per tick (uncached — trivial at single-user scale).
 10. **The applied-suppression set includes every application regardless of stage** (the code comment says "any stage past 'saved'" but the query selects all applications — even `saved` ones suppress matching new postings from notifying). Behaviorally this means tracking a role hides its reposts immediately, which is arguably intended but diverges from the comment.
+11. **A digest slot's send is stamped *before* it's confirmed sent.** `send-digest.ts` writes `settings.last_digest_sent_at = now()` immediately on entering a due slot, specifically to prevent a slow send from double-firing on the next 5-minute tick — but the trade-off is that a mid-send crash (e.g. the worker restarts between the stamp and `deliver()` completing) would skip that slot's digest entirely rather than retry it on the next tick. Accepted for a single-user, at-most-daily-impact tool.
+12. **README column-map repos need one-time manual verification.** `sources/github.ts`'s `columns` config (per-source override for non-standard README tables) has no auto-detection — adding a new repo whose table layout differs from the community standard still requires reading its README and hand-writing the `company=N,role=N,location=N,link=N` string; a wrong guess silently yields empty/garbled postings rather than an error, since malformed cells for a given company are simply dropped (a row must have both company and role and a link to be kept).
+13. **Screenshot Intake never verifies the extracted URL is real** — `screenshot-extract.ts`'s prompt asks Haiku not to fabricate a URL, but nothing checks that a URL it *does* report actually resolves; a partially-legible or OCR-mangled URL could be saved as-is (the user reviews every field before confirming, which is the actual safety net here, not code validation).
+14. **Interview prep and Resume Studio's chat share the same anti-fabrication instruction pattern** (never invent facts/links not present in the input) but neither is code-enforced beyond the prompt — both rely entirely on the model following instructions, same as `drafting.ts` and `match-option`.
 
 ## Roadmap (per the project plan recorded in commit history and memory notes)
 
-- **Phase 2 — remaining:**
-  - **P2-M2 Gmail monitoring** — read-only full-body scope (approved), extracting application-status changes (interview invites, rejections) into the tracker; storing only extracted status, never email content.
-  - **P2-M3 Interview prep** — assistance for scheduled interviews.
-  - (P2-M1 Full Auto-Apply shipped 2026-07-03, extension 0.2.0–0.3.0.)
+- **Phase 2 — fully shipped.**
+  - **P2-M1 Full Auto-Apply** shipped 2026-07-03, extension 0.2.0–0.3.0, with a **master kill switch** — `settings.auto_apply_enabled`, default off — added later as an additional safety gate on top of per-application opt-in; enforced authoritatively in `api/assist/packet/route.ts`.
+  - **P2-M2 Gmail status monitoring** shipped — opt-in, read-**metadata**-only (From/Subject/Gmail's own short snippet — never the full body), a separate OAuth consent flow from sign-in, Haiku classification gated to high-confidence matches only, forward-only stage transitions (rejection excepted), never persists email content — only the classification's consequence. §5j / `apps/worker/src/{gmail-client,tasks/sync-gmail-status}.ts` / `apps/web/src/app/api/gmail/*`. This also unlocks the LinkedIn-email-alert ingestion route below, whose plumbing this feature already built.
+  - **P2-M3 Interview & skill-prep recommendations** shipped — `lib/interview-prep.ts`, `components/prep-panel.tsx`, LeetCode/NeetCode 150 links, §5h.
 - **Phase 3:**
-  - **Visa-sponsorship filter UI refinement** (data + filter exist; richer surfacing planned).
-  - **Analytics dashboard** (application funnel, response rates — `mode_decisions` and `notification_log` are ready inputs).
-  - **Data export.**
-  - **Digest smart-ranking** — ordering the morning digest by fit instead of queue order.
+  - **Analytics dashboard shipped** — `app/(app)/analytics/page.tsx`: pipeline funnel, automation mode split, recommendation-vs-choice accuracy (overall + per-ATS), notification activity, source health — all read-only aggregates of existing tables, no new data collection.
+  - **Visa-sponsorship filter UI refinement** — still only the original filter chip; no richer surfacing yet.
+  - **Data export** — not started.
+  - **Digest smart-ranking** — the digest is now genuinely a *scheduled* batch (twice daily, configurable hours) rather than a quiet-hours artifact, but still lists postings in queue order, not ranked by fit.
+- **Source expansion / discovery breadth** — three concrete pieces landed this cycle: the **per-source README column-map parser** (`sources/github.ts` `columns` config) so non-standard repos (e.g. speedyapply-style link columns, jobright-ai-style link-in-title-cell layouts) can be onboarded without code changes; **Screenshot Intake** (`/intake`) as the compliant, zero-ToS-risk route for sources that only ever post as an image (the original zero2sudo-Instagram-stories use case) — a vision model (Haiku) extracts the posting, the user reviews every field, and confirmation runs the same normalize/dedupe/tag pipeline as a polled ingest; and **Gmail status monitoring** (P2-M2, above), which also builds the exact plumbing LinkedIn ingestion needs. **LinkedIn Jobs ingestion itself still has no code written** — no individual API access (partner-gated), so the plan is LinkedIn's own email job-alerts read through the same Gmail-sync mechanism (a saved-search alert is just another classifiable email); this is now an "add a classification path," not "build Gmail access from scratch."
+- **Notification model overhaul shipped** — twice-daily email digest at configurable hours (default 8am/5pm) replacing the original "one digest after quiet hours ends" design, a Simplify-style HTML template (`apps/worker/src/email-template.ts`) for both the digest and instant alerts, and a per-company **instant watchlist** that bypasses both the digest and quiet hours. Quiet hours now govern push/SMS only.
+- **Resume Studio preview-before-apply shipped** — a chat-proposed LaTeX change can now be compiled and previewed in an iframe before being applied to the editor or the persisted resume (§5i), on top of the pre-existing LaTeX editor + Tectonic compile + Sonnet chat + save-as-resume-version flow.
 - **Deferred ideas visible in code:** R2 storage backend behind `lib/storage.ts`; Claude-based posting tagging as the upgrade over regexes; recommendation of `auto` mode once a per-portal reliability track record exists (`lib/recommendation.ts` explicitly waits for this); resume-parse → profile enrichment ("will enrich them automatically once the Claude API key is set up" per the Profile UI copy).

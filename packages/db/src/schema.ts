@@ -235,6 +235,16 @@ export const settings = pgTable("settings", {
   digestHours: jsonb("digest_hours").$type<number[]>().notNull().default([8, 17]),
   /** Last time a digest slot was flushed — guards against re-sending within a slot. */
   lastDigestSentAt: timestamp("last_digest_sent_at", { withTimezone: true }),
+  /**
+   * Gmail status monitoring (P2-M2) — opt-in, off by default. `gmailRefreshToken` is a
+   * real secret (a long-lived OAuth grant for gmail.readonly on the user's own inbox);
+   * obtained via the separate /api/gmail/connect consent flow, never the sign-in flow.
+   * The worker only ever stores extracted status signals, never raw email content.
+   */
+  gmailEnabled: boolean("gmail_enabled").notNull().default(false),
+  gmailRefreshToken: text("gmail_refresh_token"),
+  gmailConnectedEmail: text("gmail_connected_email"),
+  gmailLastSyncAt: timestamp("gmail_last_sync_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

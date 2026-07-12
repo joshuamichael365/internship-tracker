@@ -36,6 +36,7 @@ Steps marked **[you]** need your accounts/browser; everything else is config tha
    - Authorized redirect URI: `https://web-production-64a44.up.railway.app/api/auth/callback/google` (plus `http://localhost:3000/api/auth/callback/google` for dev).
 4. Copy client id/secret into `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`, remove `AUTH_DISABLED` from any env, redeploy.
 5. For **Google Drive storage** (optional): enable the Drive API in the same project, add scope `https://www.googleapis.com/auth/drive.file` on the consent screen, mint a refresh token via OAuth playground (https://developers.google.com/oauthplayground with your own client creds), set `GDRIVE_CLIENT_ID/SECRET/REFRESH_TOKEN` on the web service.
+6. For **Gmail status monitoring** (P2-M2, opt-in): **[you]** enable the Gmail API (APIs & Services → Library → Gmail API → Enable). Add a SECOND authorized redirect URI to the **same** OAuth client: `https://web-production-64a44.up.railway.app/api/gmail/callback` (plus `http://localhost:3000/api/gmail/callback` for dev) — this is a separate consent flow from sign-in (`/api/gmail/connect` → `/api/gmail/callback`), requesting only `gmail.readonly`, so widening it never touches the sign-in scope. Reuses `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` — **also set both on the worker service** (it needs them to refresh the stored Gmail token; not required there before this feature). No new env vars. Then in-app: Settings → Gmail status monitoring → Connect Gmail, once per machine/account.
 
 ## 3. Anthropic API — drafting + tagging (~$3–5/mo at realistic usage)
 

@@ -4,6 +4,7 @@ import { SourcesManager } from "@/components/sources-manager";
 import { NotificationSettings } from "@/components/notification-settings";
 import { StorageSettings } from "@/components/storage-settings";
 import { AutoApplySettings } from "@/components/auto-apply-settings";
+import { GmailSettings } from "@/components/gmail-settings";
 import { driveConfigured } from "@/lib/gdrive";
 
 export const metadata = { title: "Settings" };
@@ -58,6 +59,16 @@ export default async function SettingsPage() {
             Controls whether the browser extension may submit applications for you.
           </p>
           <AutoApplySettings initial={prefs?.autoApplyEnabled ?? false} />
+        </Card>
+        <Card>
+          <h2 className="mb-1 text-[17px] font-semibold">Gmail status monitoring</h2>
+          <GmailSettings
+            initial={{
+              enabled: prefs?.gmailEnabled ?? false,
+              connectedEmail: prefs?.gmailConnectedEmail ?? null,
+              lastSyncAt: prefs?.gmailLastSyncAt?.toISOString() ?? null,
+            }}
+          />
         </Card>
         <Card>
           <h2 className="mb-1 text-[17px] font-semibold">Document storage</h2>

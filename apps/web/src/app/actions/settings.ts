@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db, settings } from "@tracker/db";
-import type { NotificationRules } from "@tracker/shared";
+import { revokeGoogleToken, type NotificationRules } from "@tracker/shared";
 
 export interface SettingsUpdate {
   timezone?: string;
@@ -27,4 +27,25 @@ export async function updateSettings(update: SettingsUpdate) {
     });
   revalidatePath("/settings");
   revalidatePath("/internships");
+}
+
+/** Revokes the Gmail grant with Google (best-effort) and clears the stored token/state. */
+export async function disconnectGmail() {
+  const [row] = await db.select({ token: settings.gmailRefreshToken }).from(settings).limit(1);
+  if (row?.token) await revokeGoogleToken(row.token);
+
+  await db
+    .insert(settings)
+    .values({ id: true, gmailEnabled: false, gmailRefreshToken: null, gmailConnectedEmail: null, gmailLastSyncAt: null })
+    .onConflictDoUpdate({
+      target: settings.id,
+      set: {
+        gmailEnabled: false,
+        gmailRefreshToken: null,
+        gmailConnectedEmail: null,
+        gmailLastSyncAt: null,
+        updatedAt: new Date(),
+      },
+    });
+  revalidatePath("/settings");
 }
