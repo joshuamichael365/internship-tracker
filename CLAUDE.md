@@ -292,17 +292,26 @@ extension) is in `DEPLOYMENT.md`.
 Per-service build/start is controlled by Railpack env vars: `RAILPACK_BUILD_CMD`,
 `RAILPACK_START_CMD`. The web build command also downloads Tectonic (see below).
 
-### Branch workflow (adopted 2026-07-11, user-requested)
-Long-lived branches form a promotion chain: **`sbx` → `dev` → `qa` → `main`**.
-- `sbx` — sandbox/integration: day-to-day work (and agent output) lands here first.
-- `dev` — promoted from sbx once a piece of work is coherent and builds clean.
-- `qa` — promoted from dev for final verification passes before release.
-- `main` — **production**: Railway auto-deploys every push (unchanged). Kept as the prod branch
-  rather than a literal `prod` branch so the existing Railway wiring stays untouched.
-Promote by merging (`git merge --no-ff` from the branch below, or a GitHub PR). Only `main` has a
-deployed environment — sbx/dev/qa are verified locally (`pnpm dev`, local Postgres) unless/until
-separate Railway environments are added. Hotfixes: fix on `main`, then back-merge down the chain
-so branches never diverge.
+### Branch workflow (adopted 2026-07-11, simplified 2026-07-12)
+Two branches: **`sbx` → `main`**. (The earlier `sbx → dev → qa → main` chain was retired — dev/qa
+were only ever fast-forwarded to the same commit as sbx, so they added ceremony without a real
+gate; see the QA gate below for where the actual safety check now lives.)
+- `sbx` — the working branch: all day-to-day work and agent output lands here first, verified
+  locally (`pnpm --filter web build`, local Postgres).
+- `main` — **production**: Railway auto-deploys every push. Kept as the prod branch (not a literal
+  `prod` branch) so the existing Railway wiring stays untouched.
+
+**Promotion to prod goes through a QA-gated GitHub PR, never a direct push:**
+1. Open a PR `sbx → main` (`gh pr create`).
+2. Run the **QA + security gate** on the PR diff (`main..sbx`): a review agent briefed on this
+   project's hard invariants (mode never defaulted; Auto-Apply only via per-app opt-in AND the
+   master switch; the extension submission gate; migration-before-deploy ordering) **plus**
+   `/security-review` for anything touching auth / `/api/assist/*` / Auto-Apply. Only runs at
+   prod-promotion time, not on every intermediate commit.
+3. Address findings, then — **for any PR containing a new migration, run it against the prod DB
+   FIRST** (see §8 prod-migration note; deploying code that references not-yet-migrated columns
+   breaks prod), then merge. Merge = deploy.
+Hotfixes: fix on `main`, then back-merge into `sbx` so the two never diverge.
 
 ### ⚠️ Railway lessons learned — these each cost real debugging time; heed them
 - **`railway variables --set` with complex quoted values can FAIL SILENTLY** (saves nothing while an

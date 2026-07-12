@@ -5,6 +5,7 @@ import { applications, db, eq, postings, profile, reminders, resumes } from "@tr
 import { ApplicationEditor } from "@/components/application-editor";
 import { AssistPanel } from "@/components/assist-panel";
 import { CompanyLogo } from "@/components/company-logo";
+import { PrepPanel } from "@/components/prep-panel";
 import { Card, ModeBadge } from "@/components/ui";
 import type { Stage } from "@/components/tracker-board";
 import { timeAgo } from "@/lib/format";
@@ -98,6 +99,7 @@ export default async function ApplicationDetail({ params }: { params: Promise<{ 
               </p>
             </Card>
           )}
+          <PrepPanel applicationId={app.id} initialPrep={app.prep} />
         </div>
         <ApplicationEditor
           data={{

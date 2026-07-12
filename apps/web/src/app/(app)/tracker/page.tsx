@@ -1,8 +1,7 @@
-import { Plus } from "lucide-react";
 import { applications, db, desc, eq, reminders } from "@tracker/db";
-import { addManualApplication } from "@/app/actions/applications";
 import { PageHeader } from "@/components/ui";
 import { TrackerBoard, type Stage, type TrackerCard } from "@/components/tracker-board";
+import { AddApplicationForm } from "@/components/add-application-form";
 
 export const metadata = { title: "Tracker" };
 export const dynamic = "force-dynamic";
@@ -37,43 +36,7 @@ export default async function TrackerPage() {
         subtitle="Every application, its stage, and its automation mode — always explicit"
       />
 
-      <details className="group mb-5">
-        <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-xl bg-accent-soft px-3.5 py-2 text-[14px] font-medium text-accent transition-opacity hover:opacity-80">
-          <Plus className="h-4 w-4" /> Add application by link
-        </summary>
-        <form
-          action={addManualApplication}
-          className="mt-3 grid max-w-2xl gap-3 rounded-2xl bg-surface p-4 shadow-card sm:grid-cols-2"
-        >
-          <label className="grid gap-1 text-[13px] font-medium sm:col-span-2">
-            Posting / careers URL
-            <input
-              name="url"
-              required
-              type="url"
-              placeholder="https://…"
-              className="rounded-lg border border-separator bg-surface-secondary px-3 py-2 text-[14px] font-normal"
-            />
-          </label>
-          <label className="grid gap-1 text-[13px] font-medium">
-            Company <span className="font-normal text-tertiary">(auto-detected if blank)</span>
-            <input name="company" className="rounded-lg border border-separator bg-surface-secondary px-3 py-2 text-[14px] font-normal" />
-          </label>
-          <label className="grid gap-1 text-[13px] font-medium">
-            Role <span className="font-normal text-tertiary">(auto-detected if blank)</span>
-            <input name="roleTitle" className="rounded-lg border border-separator bg-surface-secondary px-3 py-2 text-[14px] font-normal" />
-          </label>
-          <label className="grid gap-1 text-[13px] font-medium">
-            Location
-            <input name="location" className="rounded-lg border border-separator bg-surface-secondary px-3 py-2 text-[14px] font-normal" />
-          </label>
-          <div className="flex items-end">
-            <button className="rounded-xl bg-accent px-4 py-2 text-[14px] font-medium text-white transition-opacity active:scale-[0.98] hover:opacity-90">
-              Add to tracker
-            </button>
-          </div>
-        </form>
-      </details>
+      <AddApplicationForm />
 
       <TrackerBoard cards={cards} />
     </>

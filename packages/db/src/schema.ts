@@ -27,6 +27,15 @@ export const locationMode = pgEnum("location_mode", ["remote", "hybrid", "onsite
 export const postingStatus = pgEnum("posting_status", ["active", "expired", "hidden"]);
 export const sponsorship = pgEnum("sponsorship", ["sponsors", "citizens_only", "unknown"]);
 
+/** Interview & skill-prep guidance generated from a posting's description; cached like modeRecommendation. */
+export interface InterviewPrep {
+  focusAreas: { topic: string; why: string }[];
+  practiceProblems: { name: string; pattern: string; difficulty: "easy" | "medium" | "hard" }[];
+  projectIdeas: string[];
+  resources: { name: string; kind: string }[];
+  behavioral: string[];
+}
+
 export const applicationMode = pgEnum("application_mode", ["manual", "assist", "auto"]);
 export const applicationStage = pgEnum("application_stage", [
   "saved",
@@ -138,6 +147,8 @@ export const applications = pgTable(
     resumeId: integer("resume_id").references(() => resumes.id, { onDelete: "set null" }),
     /** Set only via the explicit per-application auto-apply opt-in; cleared on any mode change away from 'auto'. */
     autoApplyApprovedAt: timestamp("auto_apply_approved_at", { withTimezone: true }),
+    /** Cached interview/skill-prep guidance (P2-M3) — generated once, regenerable, useful in every mode. */
+    prep: jsonb("prep").$type<InterviewPrep>(),
     /** How many times the extension hit a blocker (CAPTCHA/bot-check) on this one; notifies at 3. */
     blockerRetries: integer("blocker_retries").notNull().default(0),
     appliedAt: timestamp("applied_at", { withTimezone: true }),
@@ -204,6 +215,12 @@ export const settings = pgTable("settings", {
     .notNull()
     .default({}),
   storageDestination: storageDestination("storage_destination").notNull().default("inapp"),
+  /**
+   * Master kill switch for Full Auto-Apply. Default false: even a per-application
+   * opt-in cannot make the extension submit until the user turns this on. The
+   * packet route enforces it — auto mode is downgraded to assist when this is off.
+   */
+  autoApplyEnabled: boolean("auto_apply_enabled").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

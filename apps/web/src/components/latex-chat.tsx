@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Check, Copy, Send, Sparkles } from "lucide-react";
+import { Check, Copy, Eye, Send, Sparkles } from "lucide-react";
 import { chatLatex } from "@/app/actions/latex";
 import { useToast } from "@/components/toast";
 
@@ -22,7 +22,15 @@ function splitLatex(content: string): { before: string; latex: string | null; af
   };
 }
 
-function AssistantMessage({ content, onApply }: { content: string; onApply: (latex: string) => void }) {
+function AssistantMessage({
+  content,
+  onApply,
+  onPreview,
+}: {
+  content: string;
+  onApply: (latex: string) => void;
+  onPreview: (latex: string) => void;
+}) {
   const { before, latex, after } = splitLatex(content);
   const [copied, setCopied] = useState(false);
 
@@ -49,6 +57,12 @@ function AssistantMessage({ content, onApply }: { content: string; onApply: (lat
                 {copied ? "Copied" : "Copy"}
               </button>
               <button
+                onClick={() => onPreview(latex)}
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-secondary hover:bg-black/[0.05] dark:hover:bg-white/[0.08]"
+              >
+                <Eye className="h-3 w-3" /> Preview
+              </button>
+              <button
                 onClick={() => onApply(latex)}
                 className="rounded-md bg-accent-soft px-2 py-1 text-[12px] font-medium text-accent"
               >
@@ -70,10 +84,12 @@ export function LatexChat({
   resumeId,
   initialHistory,
   onApplyLatex,
+  onPreviewLatex,
 }: {
   resumeId: number;
   initialHistory: ChatMessage[];
   onApplyLatex: (latex: string) => void;
+  onPreviewLatex: (latex: string) => void;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialHistory);
   const [input, setInput] = useState("");
@@ -121,7 +137,7 @@ export function LatexChat({
               </div>
             ) : (
               <div key={i} className="mr-auto max-w-[92%] rounded-2xl rounded-bl-sm bg-surface-secondary px-3.5 py-2.5">
-                <AssistantMessage content={m.content} onApply={apply} />
+                <AssistantMessage content={m.content} onApply={apply} onPreview={onPreviewLatex} />
               </div>
             ),
           )}

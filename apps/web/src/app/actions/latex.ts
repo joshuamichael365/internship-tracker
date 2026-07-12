@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import Anthropic from "@anthropic-ai/sdk";
 import { db, desc, eq, latexResumes, profile, resumes } from "@tracker/db";
 import { JAKES_RESUME_TEMPLATE } from "@/lib/latex-templates";
+import { previewKeyFor } from "@/lib/latex-compile";
 import { deleteUpload, saveUpload, uploadPath } from "@/lib/storage";
 
 const MODEL = "claude-sonnet-5";
@@ -37,6 +38,7 @@ export async function deleteLatexResume(id: number): Promise<void> {
   if (!row) return;
   await db.delete(latexResumes).where(eq(latexResumes.id, id));
   if (row.compiledKey) await deleteUpload(row.compiledKey);
+  await deleteUpload(previewKeyFor(id)); // best-effort; no-op if never previewed
   revalidatePath("/resume-studio");
 }
 

@@ -11,6 +11,7 @@ export interface SettingsUpdate {
   channels?: { push: boolean; email: boolean; sms: boolean };
   includeNewGrad?: boolean;
   notificationRules?: NotificationRules;
+  autoApplyEnabled?: boolean;
 }
 
 export async function updateSettings(update: SettingsUpdate) {

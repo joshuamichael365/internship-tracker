@@ -310,9 +310,10 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
               showToast("Notes saved");
             })
           }
-          className="mt-2 rounded-lg bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent transition-transform active:scale-[0.98]"
+          disabled={pending}
+          className="mt-2 rounded-lg bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
         >
-          Save notes
+          {pending ? "Saving…" : "Save notes"}
         </button>
       </div>
 

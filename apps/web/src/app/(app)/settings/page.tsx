@@ -3,6 +3,7 @@ import { Card, PageHeader } from "@/components/ui";
 import { SourcesManager } from "@/components/sources-manager";
 import { NotificationSettings } from "@/components/notification-settings";
 import { StorageSettings } from "@/components/storage-settings";
+import { AutoApplySettings } from "@/components/auto-apply-settings";
 import { driveConfigured } from "@/lib/gdrive";
 
 export const metadata = { title: "Settings" };
@@ -48,6 +49,13 @@ export default async function SettingsPage() {
             }}
             vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? null}
           />
+        </Card>
+        <Card>
+          <h2 className="mb-1 text-[17px] font-semibold">Automation</h2>
+          <p className="mb-3 text-[13px] text-secondary">
+            Controls whether the browser extension may submit applications for you.
+          </p>
+          <AutoApplySettings initial={prefs?.autoApplyEnabled ?? false} />
         </Card>
         <Card>
           <h2 className="mb-1 text-[17px] font-semibold">Document storage</h2>
