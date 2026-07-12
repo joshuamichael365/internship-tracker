@@ -215,6 +215,12 @@ export const settings = pgTable("settings", {
     .notNull()
     .default({}),
   storageDestination: storageDestination("storage_destination").notNull().default("inapp"),
+  /**
+   * Master kill switch for Full Auto-Apply. Default false: even a per-application
+   * opt-in cannot make the extension submit until the user turns this on. The
+   * packet route enforces it — auto mode is downgraded to assist when this is off.
+   */
+  autoApplyEnabled: boolean("auto_apply_enabled").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

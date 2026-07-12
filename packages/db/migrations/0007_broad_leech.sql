@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "auto_apply_enabled" boolean DEFAULT false NOT NULL;

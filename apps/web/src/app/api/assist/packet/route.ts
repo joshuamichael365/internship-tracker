@@ -1,6 +1,6 @@
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { applications, db, desc, documents, eq, profile } from "@tracker/db";
+import { applications, db, desc, documents, eq, profile, settings } from "@tracker/db";
 import { resolveResumeForApplication, resumeFilename } from "@/lib/resolve-resume";
 import { ASSIST_CORS, assistAuthorized, assistPreflight } from "@/lib/extension-auth";
 
@@ -37,6 +37,15 @@ export async function GET(req: Request) {
 
   if (!match) return NextResponse.json({ match: null }, { headers: ASSIST_CORS });
 
+  // Master Auto-Apply kill switch (default off). When disabled, no application
+  // may submit regardless of its per-application opt-in: downgrade auto → assist
+  // (the extension still fills, but never submits) and report not-approved. This
+  // is the authoritative submission gate — the extension can't override it.
+  const [prefs] = await db.select().from(settings).limit(1);
+  const autoApplyEnabled = prefs?.autoApplyEnabled ?? false;
+  const effectiveMode = match.mode === "auto" && !autoApplyEnabled ? "assist" : match.mode;
+  const autoApplyApproved = effectiveMode === "auto" && !!match.autoApplyApprovedAt;
+
   const [prof] = await db.select().from(profile).limit(1);
   const docs = await db
     .select()
@@ -52,9 +61,9 @@ export async function GET(req: Request) {
         applicationId: match.id,
         company: match.company,
         roleTitle: match.roleTitle,
-        mode: match.mode,
+        mode: effectiveMode,
         drafts: match.drafts ?? {},
-        autoApply: { approved: !!match.autoApplyApprovedAt },
+        autoApply: { approved: autoApplyApproved },
         coverLetterPdfUrl: coverLetterDoc ? `/api/assist/document/${coverLetterDoc.id}` : null,
         resumePdfUrl: resume ? `/api/assist/resume?applicationId=${match.id}` : null,
         resumeFilename: resume ? resumeFilename(resume) : null,
