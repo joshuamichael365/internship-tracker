@@ -61,85 +61,95 @@ export function PrepPanel({
         </>
       ) : (
         <div className="mt-3 grid gap-4">
-          <section>
-            <h3 className="mb-1.5 text-[13px] font-semibold text-secondary">Focus areas</h3>
-            <div className="grid gap-2">
-              {prep.focusAreas.map((f, i) => (
-                <div key={i} className="rounded-lg bg-surface-secondary p-2.5">
-                  <p className="text-[13px] font-medium">{f.topic}</p>
-                  <p className="text-[12px] text-tertiary">{f.why}</p>
-                </div>
-              ))}
-            </div>
-          </section>
+          {prep.focusAreas.length > 0 && (
+            <section>
+              <h3 className="mb-1.5 text-[13px] font-semibold text-secondary">Focus areas</h3>
+              <div className="grid gap-2">
+                {prep.focusAreas.map((f, i) => (
+                  <div key={i} className="rounded-lg bg-surface-secondary p-2.5">
+                    <p className="text-[13px] font-medium">{f.topic}</p>
+                    <p className="text-[12px] text-tertiary">{f.why}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
-          <section>
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <h3 className="text-[13px] font-semibold text-secondary">Practice problems</h3>
-              <a
-                href={NEETCODE_PRACTICE_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-0.5 text-[12px] font-medium text-accent hover:underline"
-              >
-                NeetCode 150 <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-            <div className="grid gap-1.5">
-              {prep.practiceProblems.map((p, i) => (
-                <div key={i} className="flex items-center justify-between gap-2 text-[13px]">
-                  <span>
-                    <a
-                      href={leetcodeSearchUrl(p.name)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-medium text-accent hover:underline"
-                    >
-                      {p.name}
-                    </a>{" "}
-                    <span className="text-tertiary">· {p.pattern}</span>
-                  </span>
-                  <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${DIFFICULTY_STYLES[p.difficulty]}`}
-                  >
-                    {p.difficulty}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <h3 className="mb-1.5 text-[13px] font-semibold text-secondary">Project ideas</h3>
-            <ul className="grid gap-1 text-[13px] text-secondary">
-              {prep.projectIdeas.map((idea, i) => (
-                <li key={i}>• {idea}</li>
-              ))}
-            </ul>
-          </section>
-
-          <section>
-            <h3 className="mb-1.5 text-[13px] font-semibold text-secondary">Resources</h3>
-            <div className="flex flex-wrap gap-1.5">
-              {prep.resources.map((r, i) => (
-                <span
-                  key={i}
-                  className="rounded-full bg-black/[0.06] px-2 py-0.5 text-[11px] font-semibold text-secondary dark:bg-white/[0.1]"
+          {prep.practiceProblems.length > 0 && (
+            <section>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <h3 className="text-[13px] font-semibold text-secondary">Practice problems</h3>
+                <a
+                  href={NEETCODE_PRACTICE_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-0.5 text-[12px] font-medium text-accent hover:underline"
                 >
-                  {r.name} <span className="font-normal text-tertiary">· {r.kind}</span>
-                </span>
-              ))}
-            </div>
-          </section>
+                  NeetCode 150 <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+              <div className="grid gap-1.5">
+                {prep.practiceProblems.map((p, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 text-[13px]">
+                    <span>
+                      <a
+                        href={leetcodeSearchUrl(p.name)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium text-accent hover:underline"
+                      >
+                        {p.name}
+                      </a>{" "}
+                      <span className="text-tertiary">· {p.pattern}</span>
+                    </span>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${DIFFICULTY_STYLES[p.difficulty]}`}
+                    >
+                      {p.difficulty}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
-          <section>
-            <h3 className="mb-1.5 text-[13px] font-semibold text-secondary">Behavioral prompts</h3>
-            <ul className="grid gap-1 text-[13px] text-secondary">
-              {prep.behavioral.map((b, i) => (
-                <li key={i}>• {b}</li>
-              ))}
-            </ul>
-          </section>
+          {prep.projectIdeas.length > 0 && (
+            <section>
+              <h3 className="mb-1.5 text-[13px] font-semibold text-secondary">Project ideas</h3>
+              <ul className="grid gap-1 text-[13px] text-secondary">
+                {prep.projectIdeas.map((idea, i) => (
+                  <li key={i}>• {idea}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {prep.resources.length > 0 && (
+            <section>
+              <h3 className="mb-1.5 text-[13px] font-semibold text-secondary">Resources</h3>
+              <div className="flex flex-wrap gap-1.5">
+                {prep.resources.map((r, i) => (
+                  <span
+                    key={i}
+                    className="rounded-full bg-black/[0.06] px-2 py-0.5 text-[11px] font-semibold text-secondary dark:bg-white/[0.1]"
+                  >
+                    {r.name} <span className="font-normal text-tertiary">· {r.kind}</span>
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {prep.behavioral.length > 0 && (
+            <section>
+              <h3 className="mb-1.5 text-[13px] font-semibold text-secondary">Behavioral prompts</h3>
+              <ul className="grid gap-1 text-[13px] text-secondary">
+                {prep.behavioral.map((b, i) => (
+                  <li key={i}>• {b}</li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <div className="border-t border-separator pt-3">
             <button

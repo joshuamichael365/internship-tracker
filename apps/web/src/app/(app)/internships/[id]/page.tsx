@@ -5,6 +5,7 @@ import { applications, db, eq, inArray, postings, sources } from "@tracker/db";
 import { savePostingNotes, toggleBookmark, trackPosting } from "@/app/actions/postings";
 import { CompanyLogo } from "@/components/company-logo";
 import { RichText } from "@/components/rich-text";
+import { SubmitButton } from "@/components/submit-button";
 import { Card } from "@/components/ui";
 import { LOCATION_MODE_LABELS, ROLE_LABELS, timeAgo } from "@/lib/format";
 
@@ -136,9 +137,12 @@ export default async function PostingDetail({ params }: { params: Promise<{ id: 
                 placeholder="Anything worth remembering about this role…"
                 className="w-full resize-y rounded-lg border border-separator bg-surface-secondary p-3 text-[14px] outline-none focus:border-accent"
               />
-              <button className="mt-2 rounded-lg bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent transition-opacity hover:opacity-80">
+              <SubmitButton
+                pendingLabel="Saving…"
+                className="mt-2 rounded-lg bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent transition-opacity active:scale-[0.98] hover:opacity-80 disabled:opacity-50 disabled:active:scale-100"
+              >
                 Save notes
-              </button>
+              </SubmitButton>
             </form>
           </Card>
 

@@ -42,6 +42,7 @@ export function LatexStudio({ data }: { data: LatexStudioData }) {
   const [tab, setTab] = useState<"preview" | "chat">("preview");
   const [undoSlot, setUndoSlot] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [savingVersion, setSavingVersion] = useState(false);
 
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -125,11 +126,16 @@ export function LatexStudio({ data }: { data: LatexStudioData }) {
 
   const saveAsVersion = () =>
     (async () => {
-      const result = await saveLatexResumeAsVersion(data.id);
-      if (result.ok) {
-        showToast("Saved as resume version — see it in Profile");
-      } else {
-        showToast(result.error ?? "Couldn't save a version");
+      setSavingVersion(true);
+      try {
+        const result = await saveLatexResumeAsVersion(data.id);
+        if (result.ok) {
+          showToast("Saved as resume version — see it in Profile");
+        } else {
+          showToast(result.error ?? "Couldn't save a version");
+        }
+      } finally {
+        setSavingVersion(false);
       }
     })();
 
@@ -157,7 +163,7 @@ export function LatexStudio({ data }: { data: LatexStudioData }) {
         {undoSlot != null && (
           <button
             onClick={undoApply}
-            className="flex items-center gap-1 rounded-lg bg-black/[0.05] px-3 py-1.5 text-[13px] font-medium text-secondary hover:bg-black/[0.08] dark:bg-white/[0.08]"
+            className="flex items-center gap-1 rounded-lg bg-black/[0.05] px-3 py-1.5 text-[13px] font-medium text-secondary transition-colors active:scale-[0.98] hover:bg-black/[0.08] dark:bg-white/[0.08]"
           >
             <RotateCcw className="h-3.5 w-3.5" /> Undo apply
           </button>
@@ -165,25 +171,25 @@ export function LatexStudio({ data }: { data: LatexStudioData }) {
         <button
           onClick={compile}
           disabled={compiling}
-          className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white transition-opacity active:scale-[0.98] hover:opacity-90 disabled:opacity-50 disabled:active:scale-100"
         >
           {compiling && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {compiling ? "Compiling…" : "Compile"}
         </button>
         <button
           onClick={saveAsVersion}
-          disabled={!data.compiledKey && !pdfUrl}
+          disabled={savingVersion || (!data.compiledKey && !pdfUrl)}
           title={!pdfUrl ? "Compile successfully first" : undefined}
-          className="flex items-center gap-1.5 rounded-lg bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent disabled:opacity-40"
+          className="flex items-center gap-1.5 rounded-lg bg-accent-soft px-3.5 py-1.5 text-[13px] font-medium text-accent transition-opacity active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100"
         >
-          <Save className="h-3.5 w-3.5" /> Save as resume version
+          <Save className="h-3.5 w-3.5" /> {savingVersion ? "Saving…" : "Save as resume version"}
         </button>
         <button
           onClick={doDelete}
           disabled={deleting}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium text-danger hover:bg-danger/10 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium text-danger transition-colors active:scale-[0.98] hover:bg-danger/10 disabled:opacity-50 disabled:active:scale-100"
         >
-          <Trash2 className="h-3.5 w-3.5" /> Delete
+          <Trash2 className="h-3.5 w-3.5" /> {deleting ? "Deleting…" : "Delete"}
         </button>
       </div>
 

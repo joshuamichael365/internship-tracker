@@ -57,7 +57,7 @@ export function ResumeManager({
   resumes: { id: number; name: string; isDefault: boolean; createdAt: string; parsed: boolean }[];
 }) {
   const [pending, startTransition] = useTransition();
-  const fileRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   return (
     <div>
@@ -105,14 +105,14 @@ export function ResumeManager({
         )}
       </ul>
       <form
+        ref={formRef}
         action={(fd) => startTransition(async () => {
           await uploadResume(fd);
-          if (fileRef.current) fileRef.current.value = "";
+          formRef.current?.reset(); // clears both the file input and the label so the next upload starts fresh
         })}
         className="mt-3 flex flex-wrap items-center gap-2"
       >
         <input
-          ref={fileRef}
           type="file"
           name="file"
           accept=".pdf,.doc,.docx"
@@ -128,7 +128,7 @@ export function ResumeManager({
           disabled={pending}
           className="flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white transition-opacity active:scale-[0.98] hover:opacity-90 disabled:opacity-50 disabled:active:scale-100"
         >
-          <Upload className="h-3.5 w-3.5" /> Upload
+          <Upload className="h-3.5 w-3.5" /> {pending ? "Uploading…" : "Upload"}
         </button>
       </form>
     </div>

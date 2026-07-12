@@ -91,7 +91,10 @@ export function AssistPanel({ applicationId }: { applicationId: number }) {
         {coverLetter ? (
           <textarea
             value={coverLetter}
-            onChange={(e) => setCoverLetter(e.target.value)}
+            onChange={(e) => {
+              setCoverLetter(e.target.value);
+              setSaved(null); // edited after saving — the saved copies are now stale
+            }}
             rows={12}
             className="w-full resize-y rounded-lg border border-separator bg-surface-secondary p-3 text-[13px] leading-relaxed outline-none focus:border-accent"
           />
@@ -111,7 +114,10 @@ export function AssistPanel({ applicationId }: { applicationId: number }) {
               <div className="mb-1.5 flex items-start justify-between gap-2">
                 <p className="text-[13px] font-medium">{qa.prompt}</p>
                 <button
-                  onClick={() => setQas(qas.filter((_, j) => j !== i))}
+                  onClick={() => {
+                    setQas(qas.filter((_, j) => j !== i));
+                    setSaved(null); // removed after saving — the saved copies are now stale
+                  }}
                   aria-label={`Remove question ${i + 1}`}
                   className="shrink-0 text-tertiary transition-colors active:scale-[0.98] hover:text-danger"
                 >
@@ -123,9 +129,10 @@ export function AssistPanel({ applicationId }: { applicationId: number }) {
               ) : (
                 <textarea
                   value={qa.answer}
-                  onChange={(e) =>
-                    setQas(qas.map((q, j) => (j === i ? { ...q, answer: e.target.value } : q)))
-                  }
+                  onChange={(e) => {
+                    setQas(qas.map((q, j) => (j === i ? { ...q, answer: e.target.value } : q)));
+                    setSaved(null); // edited after saving — the saved copies are now stale
+                  }}
                   rows={5}
                   className="w-full resize-y rounded-lg border border-separator bg-surface-secondary p-2.5 text-[13px] leading-relaxed outline-none focus:border-accent"
                 />
