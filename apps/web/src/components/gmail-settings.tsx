@@ -46,7 +46,9 @@ export function GmailSettings({ initial }: { initial: GmailState }) {
       <p className="mb-3 text-[13px] text-secondary">
         Reads application-status signals (interview invites, rejections, OA/offer emails) from your
         inbox and updates the matching tracker card automatically. Read-only — never sends, deletes, or
-        modifies anything in Gmail. Only the extracted status is stored; email content is never saved.
+        modifies anything in Gmail. Only a short candidate preview (sender/subject/snippet) for emails
+        that look related to a tracked company is sent to Claude to classify — nothing is ever saved
+        except the resulting status; the email itself is discarded immediately after.
       </p>
       {initial.enabled ? (
         <div className="flex items-center justify-between gap-3 rounded-xl bg-surface-secondary p-3">
