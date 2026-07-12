@@ -43,8 +43,13 @@ export function LatexStudio({ data }: { data: LatexStudioData }) {
   const [undoSlot, setUndoSlot] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [savingVersion, setSavingVersion] = useState(false);
+  // A chat-proposed change currently shown in the preview pane, not yet applied.
+  const [proposed, setProposed] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
 
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The real compiled-PDF url to restore if a proposed preview is dismissed.
+  const preProposalPdfUrl = useRef<string | null>(null);
 
   const persist = useCallback(
     (fields: { name?: string; source?: string }) => {
@@ -108,11 +113,58 @@ export function LatexStudio({ data }: { data: LatexStudioData }) {
     })();
 
   const applyLatex = (latex: string) => {
+    setProposed(null); // clear any open proposal banner — this change is now applied
+    preProposalPdfUrl.current = null;
     setUndoSlot(editorRef.current?.getValue() ?? source);
     editorRef.current?.setValue(latex);
     setSource(latex);
     persist({ source: latex });
     setSavedSource(latex);
+  };
+
+  // Compile a chat-proposed change into a throwaway preview PDF and show it,
+  // WITHOUT applying it to the editor or touching the saved resume — so the user
+  // can see the result before deciding.
+  const previewProposed = (latex: string) =>
+    (async () => {
+      setTab("preview");
+      preProposalPdfUrl.current = pdfUrl; // remember what to restore on dismiss
+      setProposed(latex);
+      setPreviewing(true);
+      setCompileLog(null);
+      try {
+        const res = await fetch("/api/latex/compile", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: data.id, source: latex }),
+        });
+        const body = await res.json();
+        setCompileLog(body.log ?? null);
+        setCompileOk(res.ok);
+        if (res.ok && body.pdfUrl) setPdfUrl(body.pdfUrl);
+      } catch {
+        setCompileOk(false);
+        setCompileLog("Network error while compiling the preview.");
+      } finally {
+        setPreviewing(false);
+      }
+    })();
+
+  // Accept the proposed change: apply it to the editor, then run a REAL compile
+  // so the resume's persisted PDF (used by "Save as version") reflects it too.
+  const applyProposed = () => {
+    if (proposed == null) return;
+    applyLatex(proposed); // clears `proposed` + preProposalPdfUrl
+    compile();
+    showToast("Applied — Undo available");
+  };
+
+  const dismissProposed = () => {
+    setProposed(null);
+    setPdfUrl(preProposalPdfUrl.current);
+    preProposalPdfUrl.current = null;
+    setCompileLog(null);
+    setCompileOk(null);
   };
 
   const undoApply = () => {
@@ -222,6 +274,32 @@ export function LatexStudio({ data }: { data: LatexStudioData }) {
 
           {tab === "preview" ? (
             <div className="flex min-h-0 flex-1 flex-col gap-2">
+              {proposed != null && (
+                <div className="flex items-center justify-between gap-2 rounded-lg bg-accent-soft px-3 py-2 text-[12px]">
+                  <span className="min-w-0 font-medium text-accent">
+                    {previewing
+                      ? "Compiling preview…"
+                      : compileOk === false
+                        ? "Proposed change — didn’t compile (see log)"
+                        : "Preview of a proposed change — not applied yet"}
+                  </span>
+                  <div className="flex shrink-0 gap-1.5">
+                    <button
+                      onClick={applyProposed}
+                      disabled={previewing}
+                      className="rounded-md bg-accent px-2 py-1 font-medium text-white transition-opacity active:scale-[0.98] hover:opacity-90 disabled:opacity-50"
+                    >
+                      Apply change
+                    </button>
+                    <button
+                      onClick={dismissProposed}
+                      className="rounded-md px-2 py-1 font-medium text-secondary transition-colors active:scale-[0.98] hover:bg-black/[0.05] dark:hover:bg-white/[0.08]"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
               {pdfUrl ? (
                 <iframe src={pdfUrl} className="min-h-0 flex-1 rounded-lg border border-separator" title="Resume preview" />
               ) : (
@@ -245,7 +323,12 @@ export function LatexStudio({ data }: { data: LatexStudioData }) {
               )}
             </div>
           ) : (
-            <LatexChat resumeId={data.id} initialHistory={data.chatHistory} onApplyLatex={applyLatex} />
+            <LatexChat
+              resumeId={data.id}
+              initialHistory={data.chatHistory}
+              onApplyLatex={applyLatex}
+              onPreviewLatex={previewProposed}
+            />
           )}
         </div>
       </div>
