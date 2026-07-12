@@ -12,6 +12,8 @@ export interface SettingsUpdate {
   includeNewGrad?: boolean;
   notificationRules?: NotificationRules;
   autoApplyEnabled?: boolean;
+  watchlistCompanies?: string[];
+  digestHours?: number[];
 }
 
 export async function updateSettings(update: SettingsUpdate) {

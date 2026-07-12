@@ -221,6 +221,20 @@ export const settings = pgTable("settings", {
    * packet route enforces it — auto mode is downgraded to assist when this is off.
    */
   autoApplyEnabled: boolean("auto_apply_enabled").notNull().default(false),
+  /**
+   * Companies to alert on INSTANTLY (email + push) the moment they post, bypassing
+   * the twice-daily digest. Stored as normalized-ish display names; matched via
+   * normalizeCompany. Empty = no instant company alerts.
+   */
+  watchlistCompanies: jsonb("watchlist_companies").$type<string[]>().notNull().default([]),
+  /**
+   * Hours (0–23, in `timezone`) at which the batched email digest of new postings
+   * is sent. Non-watchlist postings' emails are collected and flushed at these
+   * slots instead of firing one email per posting. Default 8am + 5pm.
+   */
+  digestHours: jsonb("digest_hours").$type<number[]>().notNull().default([8, 17]),
+  /** Last time a digest slot was flushed — guards against re-sending within a slot. */
+  lastDigestSentAt: timestamp("last_digest_sent_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
