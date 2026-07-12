@@ -43,6 +43,13 @@
       "when": 1783183696777,
       "tag": "0005_workable_sprite",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783810853285,
+      "tag": "0006_moaning_paibok",
+      "breakpoints": true
     }
   ]
 }
