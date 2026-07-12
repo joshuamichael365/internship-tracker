@@ -46,6 +46,8 @@ export default async function SettingsPage() {
               channels: prefs?.channels ?? { push: true, email: true, sms: false },
               includeNewGrad: prefs?.includeNewGrad ?? false,
               rules,
+              watchlistCompanies: prefs?.watchlistCompanies ?? [],
+              digestHours: prefs?.digestHours ?? [8, 17],
             }}
             vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? null}
           />

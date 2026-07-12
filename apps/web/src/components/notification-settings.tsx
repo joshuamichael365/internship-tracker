@@ -14,8 +14,26 @@ interface Props {
     channels: { push: boolean; email: boolean; sms: boolean };
     includeNewGrad: boolean;
     rules: NotificationRules;
+    watchlistCompanies: string[];
+    digestHours: number[];
   };
   vapidPublicKey: string | null;
+}
+
+const HOUR_LABEL = (h: number) => (h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`);
+
+function HourSelect({ value, onChange }: { value: number; onChange: (h: number) => void }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className="rounded-lg border border-separator bg-surface px-2.5 py-1.5"
+    >
+      {Array.from({ length: 24 }, (_, h) => (
+        <option key={h} value={h}>{HOUR_LABEL(h)}</option>
+      ))}
+    </select>
+  );
 }
 
 function Toggle({
@@ -90,6 +108,8 @@ export function NotificationSettings({ initial, vapidPublicKey }: Props) {
       channels: next.channels,
       includeNewGrad: next.includeNewGrad,
       notificationRules: next.rules,
+      watchlistCompanies: next.watchlistCompanies,
+      digestHours: next.digestHours,
     });
   }
 
@@ -168,11 +188,46 @@ export function NotificationSettings({ initial, vapidPublicKey }: Props) {
         ))}
       </div>
 
+      {/* Email digest + instant company alerts */}
+      <div className="border-t border-separator pt-4">
+        <p className="text-[15px] font-medium">Email digest</p>
+        <p className="mb-2 text-[13px] text-secondary">
+          New postings are collected and emailed twice a day — not one email per posting. Pick the two send times.
+        </p>
+        <div className="flex flex-wrap items-center gap-2 text-[14px]">
+          Send at
+          <HourSelect
+            value={state.digestHours[0] ?? 8}
+            onChange={(h) => patch({ digestHours: [h, state.digestHours[1] ?? 17] })}
+          />
+          and
+          <HourSelect
+            value={state.digestHours[1] ?? 17}
+            onChange={(h) => patch({ digestHours: [state.digestHours[0] ?? 8, h] })}
+          />
+        </div>
+
+        <label className="mt-4 grid gap-1 text-[14px] font-medium">
+          Instant-alert companies
+          <span className="text-[12px] font-normal text-tertiary">
+            Email + push the moment these companies post — skipping the digest so you can apply early. Comma-separated.
+          </span>
+          <input
+            defaultValue={(state.watchlistCompanies ?? []).join(", ")}
+            onBlur={(e) =>
+              patch({ watchlistCompanies: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })
+            }
+            placeholder="Jane Street, Stripe, NVIDIA"
+            className="rounded-lg border border-separator bg-surface px-3 py-2 text-[14px] font-normal"
+          />
+        </label>
+      </div>
+
       {/* Quiet hours */}
       <div className="border-t border-separator pt-4">
         <p className="text-[15px] font-medium">Quiet hours</p>
         <p className="mb-2 text-[13px] text-secondary">
-          Overnight matches are batched into one morning digest instead of pinging you.
+          Push notifications pause during these hours (email always uses the twice-daily digest above).
         </p>
         <div className="flex flex-wrap items-center gap-2 text-[14px]">
           From
