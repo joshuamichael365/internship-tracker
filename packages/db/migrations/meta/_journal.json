@@ -64,6 +64,13 @@
       "when": 1783876359636,
       "tag": "0008_little_absorbing_man",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783879253189,
+      "tag": "0009_absent_yellowjacket",
+      "breakpoints": true
     }
   ]
 }

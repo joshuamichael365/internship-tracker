@@ -70,10 +70,13 @@ Permissions: `activeTab`, `scripting`, `storage`, `tabs`. No `content_scripts` i
 Re-exports drizzle query operators (`eq`, `and`, `sql`, etc.) so web/worker don't import drizzle-orm
 directly. `main`/`types` point straight at `src/` — no build step; consumers import the TS.
 
-**`packages/shared`** — pure, **dependency-free** TS. Types, `normalizeCompany/Title/Location`,
-`fnv1a64` + `dedupeHash`, tagging heuristics (`classifyRole/Level/LocationMode`, `extractTerms`,
-`isRelevantRole`), notification-rule + quiet-hours logic. Imported by BOTH web and worker so the
-logic is identical on both sides.
+**`packages/shared`** — pure, **dependency-free** TS (its one exception: `google-oauth.ts` uses the
+Node/browser-global `fetch`, still zero npm deps — the first async/network code in this package,
+shared so web's `/api/gmail/connect`+`callback` and the worker's Gmail-token refresh don't duplicate
+OAuth plumbing). Types, `normalizeCompany/Title/Location`, `fnv1a64` + `dedupeHash`, tagging heuristics
+(`classifyRole/Level/LocationMode`, `extractTerms`, `isRelevantRole`), notification-rule + quiet-hours
++ digest-slot + watchlist-match logic (`digestSlotDue`, `isWatchedCompany`). Imported by BOTH web and
+worker so the logic is identical on both sides.
 
 **External services:** Anthropic API (all AI), Resend (email, free tier), Twilio (SMS, currently
 off), Railway (hosting), Tectonic (LaTeX compiler binary). Company logos come from Google's public
@@ -115,7 +118,7 @@ data/           local file uploads (gitignored; prod uses the Railway volume)
 - `app/(app)/documents/page.tsx` — generated documents list with download.
 - `app/(app)/resume-studio/page.tsx` + `[id]/page.tsx` — LaTeX resume list & editor (with preview-before-apply for chat-proposed changes).
 - `app/(app)/profile/page.tsx` — resumes, auto-fill profile fields, application-answers, writing samples.
-- `app/(app)/settings/page.tsx` — sources manager, notification settings (digest hours + watchlist), Automation card (master Auto-Apply kill switch), storage destination.
+- `app/(app)/settings/page.tsx` — sources manager, notification settings (digest hours + watchlist), Automation card (master Auto-Apply kill switch), Gmail status monitoring (P2-M2 connect/disconnect), storage destination.
 - `app/(app)/archive/page.tsx` — expired/hidden postings.
 - `app/(app)/loading.tsx` — skeleton shimmer for all (app) routes.
 - `app/signin/page.tsx` — Google sign-in (public).
@@ -128,7 +131,8 @@ document save + storage destination), `auth.ts` (`signOutAction`), `intake.ts` (
 worker's ingest), `latex.ts` (Resume Studio CRUD + `chatLatex` + save-as-resume-version + preview-key
 cleanup), `postings.ts` (bookmark/notes/track), `prep.ts` (`generatePrep` — interview/skill-prep
 generation), `profile.ts` (resume upload/parse, profile save), `samples.ts` (writing samples),
-`settings.ts` (now also `autoApplyEnabled`/`watchlistCompanies`/`digestHours`), `sources.ts` (source
+`settings.ts` (now also `autoApplyEnabled`/`watchlistCompanies`/`digestHours`, plus `disconnectGmail()`
+— revokes the Gmail grant with Google best-effort and clears the stored token), `sources.ts` (source
 CRUD + presets + per-source README `columns` override).
 
 ### apps/web/src/app/api — route handlers (for external callers that can't use server actions)
@@ -144,6 +148,12 @@ CRUD + presets + per-source README `columns` override).
   `pdf/[id]` accepts `?preview=1` to stream that throwaway PDF instead of the persisted one.
 - `api/documents/[id]/download` — session-gated download.
 - `api/push/subscribe` — web-push subscription registration.
+- `api/gmail/{connect,callback}` — P2-M2's OAuth consent flow, deliberately separate from sign-in.
+  `connect` sets a short-lived httpOnly CSRF-state cookie and redirects to Google requesting only
+  `gmail.readonly`, `access_type=offline`, `prompt=consent` (forces a refresh_token every time).
+  `callback` verifies the state cookie, exchanges the code, and persists ONLY the refresh token +
+  connected email address to `settings` — never an access token, never anything from the inbox.
+  Both are session-gated by the normal proxy wall (not in its exclusion list), same as every page.
 
 ### apps/web/src/lib — server-side libraries
 `drafting.ts` (Sonnet cover-letter/short-answer generation, few-shot from writing samples;
@@ -165,7 +175,9 @@ slug), `latex-compile.ts` (**Tectonic execFile sandbox** — `compileLatexResume
 posting has no URL), `filter-bar.tsx`, `company-logo.tsx` (favicon + letter fallback),
 `tracker-board.tsx` (Kanban, stage colors), `application-editor.tsx`, `assist-panel.tsx`,
 `auto-apply-optin.tsx` (pre-submit preview + checkbox), `auto-apply-settings.tsx` (master Auto-Apply
-kill switch), `prep-panel.tsx` (interview/skill-prep card, all modes), `screenshot-intake.tsx`
+kill switch), `gmail-settings.tsx` (P2-M2 — Connect/Disconnect + connected-email/last-synced display;
+reads the `?gmail=connected|error` query param the callback route sets and surfaces it as a toast),
+`prep-panel.tsx` (interview/skill-prep card, all modes), `screenshot-intake.tsx`
 (upload → extract → confirm → create/track), `add-application-form.tsx` (Tracker's add-by-link
 panel), `submit-button.tsx` (drop-in `useFormStatus` pending button), `profile-manager.tsx`,
 `writing-samples.tsx`, `sources-manager.tsx` (+ README column-map field), `notification-settings.tsx`
@@ -180,13 +192,16 @@ preview-before-apply banner) / `latex-editor.tsx` / `latex-chat.tsx` (+ Preview 
 `notify.ts` (channel fan-out + `getSettings`/`deliver`/`onNewPosting`/`onSubmissionConfirmed` —
 `onNewPosting` now splits watchlisted companies, instant on every channel, from everyone else, whose
 email queues for the twice-daily digest while push/SMS stay instant), `email-template.ts`
-(Simplify-style HTML: `renderDigestEmail`, `renderPostingEmail`).
+(Simplify-style HTML: `renderDigestEmail`, `renderPostingEmail`), `gmail-client.ts` (P2-M2 — plain-fetch
+Gmail REST client: `listRecentMessageIds`/`getMessageMeta` (metadata only, never `format=full`) +
+`classifyStatusSignal` (Haiku, plain fetch — no SDK in the worker, matching `channels/*.ts`)).
 `channels/{email,push,sms}.ts` (Resend/web-push/Twilio, each no-ops gracefully when unconfigured).
 `sources/{http,github,ats,rss}.ts` (conditional-fetch helper + per-platform pollers; `github.ts` adds
 `parseColumnMap`/`parseReadmeTable` for per-source non-standard README table layouts).
-`tasks/{poll-sources,auto-archive,send-digest,send-reminders,send-confirmation,send-blocker-notice}.ts`
-(`send-digest.ts` now flushes at configurable clock-hour slots via `digestSlotDue`, not "after quiet
-hours ends").
+`tasks/{poll-sources,auto-archive,send-digest,send-reminders,send-confirmation,send-blocker-notice,
+sync-gmail-status}.ts` (`send-digest.ts` now flushes at configurable clock-hour slots via
+`digestSlotDue`, not "after quiet hours ends"; `sync-gmail-status.ts` is P2-M2 — see §9 for the full
+flow, forward-only stage mapping, and what is/isn't ever persisted).
 
 ### apps/extension
 `manifest.json` (v0.3.0), `popup.html`/`popup.js` (the only token holder; drives everything),
@@ -216,7 +231,10 @@ Key columns worth knowing:
   `{push,email,sms:false}`, `notification_rules`, `storage_destination`, `include_new_grad`,
   `auto_apply_enabled` (**master Auto-Apply kill switch, default false** — enforced in
   `api/assist/packet/route.ts`), `watchlist_companies` jsonb `[]` (instant-alert bypass companies),
-  `digest_hours` jsonb default `[8,17]` (twice-daily email digest send times), `last_digest_sent_at`.
+  `digest_hours` jsonb default `[8,17]` (twice-daily email digest send times), `last_digest_sent_at`,
+  `gmail_enabled` (P2-M2, default false), `gmail_refresh_token` (**a real secret** — a long-lived
+  gmail.readonly grant, obtained via the separate `/api/gmail/connect` consent flow, never sign-in),
+  `gmail_connected_email`, `gmail_last_sync_at`.
 - `latex_resumes`: `source` (.tex), `compiled_key`, `compile_log`, `chat_history` jsonb.
 
 **Migrations** (drizzle-kit, in `packages/db/migrations/`): `0000` initial schema · `0001`
@@ -224,8 +242,9 @@ notification_rules default → `{}` · `0002` timezone → America/New_York + `a
 `0003` `postings.terms` · `0004` `auto_apply_approved_at` + `blocker_retries` (Full Auto-Apply) ·
 `0005` `latex_resumes` (Resume Studio) · `0006` `applications.prep` (interview/skill prep) · `0007`
 `settings.auto_apply_enabled` (master kill switch) · `0008` `settings.watchlist_companies` +
-`digest_hours` + `last_digest_sent_at` (notification overhaul). Generate a new one after any
-`schema.ts` change with `pnpm db:generate`, then `pnpm db:migrate`.
+`digest_hours` + `last_digest_sent_at` (notification overhaul) · `0009` `settings.gmail_enabled` +
+`gmail_refresh_token` + `gmail_connected_email` + `gmail_last_sync_at` (P2-M2). Generate a new one
+after any `schema.ts` change with `pnpm db:generate`, then `pnpm db:migrate`.
 
 **Job queue (graphile-worker, in Postgres).** Crontab in `apps/worker/src/index.ts`:
 ```
@@ -233,6 +252,7 @@ notification_rules default → `{}` · `0002` timezone → America/New_York + `a
 */5 * * * * send_digest       # flush at configured digest-hour slots (default 8am/5pm), not quiet-hours-based anymore
 */5 * * * * send_reminders    # fire due OA/follow-up reminders
 13 * * * *  auto_archive      # expire past-deadline postings (offset to avoid top-of-hour clash)
+*/15 * * * * sync_gmail_status # P2-M2, opt-in — no-ops instantly if Gmail isn't connected
 ```
 `send_confirmation` and `send_blocker_notice` are **not** cron'd — the web app enqueues them on demand
 via `select graphile_worker.add_job(...)` (from `lib/applied-side-effects.ts` and
@@ -411,11 +431,30 @@ API key** pays for the app's runtime AI. Separate wallets — agent work never t
   profile section → Haiku semantic option-matching), now additionally gated by a **master Auto-Apply
   kill switch** (`settings.auto_apply_enabled`, default off, Settings → Automation card;
   server-enforced in `api/assist/packet/route.ts` — downgrades `mode: "auto"` to `"assist"` in the
-  extension's response whenever the switch is off, regardless of per-app approval). **P2-M2 Gmail
-  status monitoring** is the only Phase 2 item still queued (below). **P2-M3 Interview & skill prep**
-  shipped: `lib/interview-prep.ts` (Sonnet, grounded in the posting description, never fabricates a
-  problem link — references by name only) + `components/prep-panel.tsx` on every application detail
-  page (all modes) with practice problems linked to a LeetCode search + the NeetCode 150 roadmap.
+  extension's response whenever the switch is off, regardless of per-app approval). **P2-M3 Interview &
+  skill prep** shipped: `lib/interview-prep.ts` (Sonnet, grounded in the posting description, never
+  fabricates a problem link — references by name only) + `components/prep-panel.tsx` on every
+  application detail page (all modes) with practice problems linked to a LeetCode search + the
+  NeetCode 150 roadmap. **Phase 2 is now fully shipped** (P2-M2 below was the last item).
+- **P2-M2 Gmail status monitoring shipped** — opt-in (off by default), read-only. A **separate OAuth
+  consent flow from sign-in** (`/api/gmail/connect` → Google → `/api/gmail/callback`, CSRF-guarded via
+  a short-lived state cookie), requesting only `gmail.readonly`; the sign-in scope is never widened.
+  `apps/worker/src/tasks/sync-gmail-status.ts` polls every 15 minutes (no-ops instantly if not
+  connected): lists recent message IDs since the last sync, fetches **metadata only** (From/Subject/
+  Gmail's own short snippet — never `format=full`, so a full email body never enters the process),
+  matches candidates against tracked applications by normalized company name, and classifies true
+  matches with Haiku (`gmail-client.ts` `classifyStatusSignal` — plain fetch, no SDK, matching the
+  worker's existing channels/*.ts convention) into interview_invite/oa_invite/offer/rejection/
+  confirmation/none. Only a **high-confidence** classification acts. Stage moves **forward-only**
+  except rejection, which is always allowed from any stage (an offer can still be rescinded); a
+  short synthesized note (e.g. `[Gmail: interview invite detected, 7/12/2026]`) is prepended to the
+  application's notes — **the email itself (from/subject/snippet) is discarded immediately after
+  classification and never persisted.** A real stage change also fires the normal notification
+  channels. Settings → Gmail status monitoring shows connected-as-email + last-synced, with a
+  Disconnect button that revokes the grant with Google. `settings.gmail_refresh_token` is a real
+  secret (migration 0009) — Google's own OAuth token store is the only place it's echoed. **This also
+  unlocks the compliant LinkedIn-email-alert ingestion route** (LinkedIn's own saved-search alerts,
+  read the same way) — not yet built, see Queued.
 - **Resume Studio** — LaTeX editor + Tectonic compile + Sonnet chat (apply/undo) + save-as-resume-version,
   plus **preview-before-apply**: a chat-proposed `<latex>` change can now be compiled into a throwaway
   preview PDF and reviewed before it touches the editor or the persisted resume (`compileLatexPreview`,
@@ -451,19 +490,17 @@ API key** pays for the app's runtime AI. Separate wallets — agent work never t
   current through the features above as of this revision).
 
 **In progress / NOT finished — pick these up:**
-- **Source expansion, second pass.** The column-map parser and Screenshot Intake (above) cover two of
-  the three original asks; **LinkedIn Jobs ingestion is still unaddressed.** No individual API access
-  (partner-gated) — best compliant path is LinkedIn's own **email job-alerts** ingested through the
-  Gmail integration below once it's unblocked; secondary is jobright-style GitHub mirrors (overlap with
-  the column-map repos already supported). Gray-market scraper APIs exist but carry ToS risk — flag,
-  don't silently adopt. Also still open: verifying + adding more active 2027-cycle repos (cvrve, Ouckah
-  successors, others) through the newly-shipped column-map config rather than requiring code changes.
+- **Source expansion, second pass.** The column-map parser, Screenshot Intake, and Gmail monitoring
+  (above) cover most of the original asks; **LinkedIn Jobs ingestion still has no code written.** No
+  individual API access (partner-gated) — the compliant path is now unblocked: LinkedIn's own **email
+  job-alerts**, read the same way the Gmail status-monitoring sync already reads the inbox (a
+  saved-search alert is just another classifiable email — the plumbing exists, this is "add a
+  LinkedIn-alert classification path," not "build Gmail access from scratch"). Secondary option is
+  jobright-style GitHub mirrors (overlap with the column-map repos already supported). Gray-market
+  scraper APIs exist but carry ToS risk — flag, don't silently adopt. Also still open: verifying +
+  adding more active 2027-cycle repos (cvrve, Ouckah successors, others) through the column-map config.
 
 **Queued (not started):**
-- **P2-M2 Gmail status monitoring** — opt-in, read-only Gmail scope, auto-updates tracker stages from
-  inbox emails (confirmations, "unfortunately…", OA/interview invites), stores only extracted status.
-  **Blocked on the user enabling the Gmail API** in Google Cloud Console (a ~30-second step). This
-  ALSO unlocks the LinkedIn-email-alert ingestion route above — worth doing next.
 - **Phase 3 remaining** — visa-sponsorship filter UI refinement (data + a basic filter already exist;
   richer surfacing planned), data export (CSV + docs zip), digest smart-ranking (the digest is now a
   genuine fixed-schedule batch, but still lists postings in queue order rather than ranked by fit).
@@ -519,5 +556,5 @@ nothing ships without a clean web build. Practical rules learned:
 
 **When you (the next AI) start:** read this file, then `docs/CODEBASE.md` for file-level depth, then
 check `git log --oneline` for the latest work. The task list / roadmap is §9. Source expansion is now
-partially done (column-map parser + Screenshot Intake shipped) — LinkedIn ingestion is the remaining
-open piece there, likely via the Gmail integration once P2-M2 is unblocked.
+mostly done (column-map parser, Screenshot Intake, and Gmail status monitoring all shipped) — LinkedIn
+ingestion is the one remaining open piece there, and the Gmail-sync plumbing it needs already exists.
