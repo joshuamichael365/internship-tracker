@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, ExternalLink } from "lucide-react";
 import { generatePrep } from "@/app/actions/prep";
 import type { InterviewPrep } from "@/lib/interview-prep";
+import { NEETCODE_PRACTICE_URL, leetcodeSearchUrl } from "@/lib/neetcode";
 import { Card } from "@/components/ui";
 import { useToast } from "@/components/toast";
 
@@ -73,12 +74,30 @@ export function PrepPanel({
           </section>
 
           <section>
-            <h3 className="mb-1.5 text-[13px] font-semibold text-secondary">Practice problems</h3>
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <h3 className="text-[13px] font-semibold text-secondary">Practice problems</h3>
+              <a
+                href={NEETCODE_PRACTICE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-0.5 text-[12px] font-medium text-accent hover:underline"
+              >
+                NeetCode 150 <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
             <div className="grid gap-1.5">
               {prep.practiceProblems.map((p, i) => (
                 <div key={i} className="flex items-center justify-between gap-2 text-[13px]">
                   <span>
-                    {p.name} <span className="text-tertiary">· {p.pattern}</span>
+                    <a
+                      href={leetcodeSearchUrl(p.name)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-accent hover:underline"
+                    >
+                      {p.name}
+                    </a>{" "}
+                    <span className="text-tertiary">· {p.pattern}</span>
                   </span>
                   <span
                     className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${DIFFICULTY_STYLES[p.difficulty]}`}
