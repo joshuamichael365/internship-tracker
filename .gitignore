@@ -12,3 +12,7 @@ out/
 coverage/
 apps/extension/dist/
 data/
+
+# Local design tooling (Impeccable skill) — not part of the app
+.claude/skills/
+.claude/agents/impeccable-*
