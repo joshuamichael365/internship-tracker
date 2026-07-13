@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { Bookmark, Check, ChevronDown } from "lucide-react";
 
 export type FilterGroup = {
@@ -92,22 +93,29 @@ function FilterDropdown({
         />
       </button>
 
-      {open && (
-        <div
-          role="listbox"
-          className="absolute left-0 top-full z-30 mt-1.5 min-w-[180px] overflow-hidden rounded-xl border border-separator bg-surface p-1 shadow-raised"
-        >
-          <MenuItem active={!value} onClick={() => pick(null)}>
-            {group.anyLabel ?? `Any ${group.label.toLowerCase()}`}
-          </MenuItem>
-          <div className="my-1 h-px bg-separator" />
-          {group.options.map(([v, label]) => (
-            <MenuItem key={v} active={v === value} onClick={() => pick(v === value ? null : v)}>
-              {label}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            role="listbox"
+            initial={{ opacity: 0, scale: 0.96, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: -4 }}
+            transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
+            style={{ transformOrigin: "top left" }}
+            className="absolute left-0 top-full z-30 mt-1.5 min-w-[180px] overflow-hidden rounded-xl border border-separator bg-surface p-1 shadow-raised"
+          >
+            <MenuItem active={!value} onClick={() => pick(null)}>
+              {group.anyLabel ?? `Any ${group.label.toLowerCase()}`}
             </MenuItem>
-          ))}
-        </div>
-      )}
+            <div className="my-1 h-px bg-separator" />
+            {group.options.map(([v, label]) => (
+              <MenuItem key={v} active={v === value} onClick={() => pick(v === value ? null : v)}>
+                {label}
+              </MenuItem>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

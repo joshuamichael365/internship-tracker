@@ -75,7 +75,7 @@ function Card({ app }: { app: TrackerCard }) {
 
   return (
     <div
-      className={`rounded-xl bg-surface p-3.5 shadow-card transition-shadow hover:shadow-raised ${pending ? "opacity-50" : "transition-opacity"}`}
+      className={`rounded-xl bg-surface p-3.5 shadow-card transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-raised ${pending ? "opacity-50" : ""}`}
     >
       <Link href={`/tracker/${app.id}`} className="flex items-start gap-2.5">
         <CompanyLogo company={app.company} url={app.url} size="sm" />

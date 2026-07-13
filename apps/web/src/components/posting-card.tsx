@@ -46,7 +46,7 @@ export function PostingCard({ posting }: { posting: PostingCardData }) {
       onKeyDown={(e) => {
         if (e.key === "Enter") router.push(`/internships/${posting.id}`);
       }}
-      className="group relative flex cursor-pointer flex-col rounded-2xl bg-surface p-4 shadow-card transition-shadow hover:shadow-raised focus-visible:shadow-raised"
+      className="group relative flex cursor-pointer flex-col rounded-2xl bg-surface p-4 shadow-card transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-raised focus-visible:shadow-raised"
     >
       <div className="flex items-start gap-3">
         <CompanyLogo company={posting.company} url={posting.url} size="md" />
