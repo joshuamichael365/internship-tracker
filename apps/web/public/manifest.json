@@ -1,10 +1,10 @@
 {
-  "name": "Internships",
-  "short_name": "Internships",
+  "name": "Erevnitis",
+  "short_name": "Erevnitis",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f5f5f7",
-  "theme_color": "#f5f5f7",
+  "background_color": "#faf6f0",
+  "theme_color": "#faf6f0",
   "icons": [
     {
       "src": "/icons/icon-192.png",

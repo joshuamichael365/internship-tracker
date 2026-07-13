@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Internships", template: "%s — Internships" },
+  title: { default: "Erevnitis", template: "%s — Erevnitis" },
   description: "Internship discovery, tracking, and application assistant",
   manifest: "/manifest.json",
   icons: {
@@ -11,15 +11,15 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "Internships",
+    title: "Erevnitis",
     statusBarStyle: "default",
   },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f5f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#161617" },
+    { media: "(prefers-color-scheme: light)", color: "#faf6f0" },
+    { media: "(prefers-color-scheme: dark)", color: "#1b1917" },
   ],
 };
 

@@ -1,4 +1,4 @@
-import { SquareKanban } from "lucide-react";
+import { LogoMark } from "@/components/logo-mark";
 import { signIn } from "@/auth";
 
 export const metadata = { title: "Sign in" };
@@ -25,10 +25,10 @@ export default function SignInPage() {
       />
 
       <div className="w-full max-w-sm rounded-3xl bg-surface p-8 text-center shadow-raised">
-        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-[26px] bg-accent text-white shadow-card">
-          <SquareKanban className="h-10 w-10" />
+        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center">
+          <LogoMark size={64} />
         </div>
-        <h1 className="text-[24px] font-bold tracking-tight">Internships</h1>
+        <h1 className="text-[24px] font-bold tracking-tight">Erevnitis</h1>
         <p className="mt-2 text-[14px] leading-relaxed text-secondary">
           Track every application in one place.
           <br />
