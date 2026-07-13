@@ -16,6 +16,42 @@ const MAX_HTML_CHARS = 60_000;
 const MAX_TEXT_CHARS = 15_000;
 const MIN_TEXT_CHARS = 200;
 
+/**
+ * SSRF guard. `posting.url` originates from external sources (GitHub repos, ATS
+ * feeds), so a malicious row could point at an internal/metadata endpoint. This
+ * app is single-tenant, but the check is cheap defense-in-depth: allow only
+ * http(s) to a public host. It validates the initial URL only — Node's fetch
+ * follows redirects, so a public host that 3xx-redirects inward isn't covered
+ * here; acceptable given the threat model, and the output is model-summarized
+ * text rather than the raw body, which limits blind-SSRF exfiltration.
+ */
+function isPublicHttpUrl(raw: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+
+  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, ""); // strip IPv6 brackets
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return false;
+  if (host === "::1" || host === "0.0.0.0") return false;
+
+  // Block private / loopback / link-local IPv4 literals (incl. cloud metadata 169.254.x.x).
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const [a, b] = v4.slice(1).map(Number);
+    if (a === 10 || a === 127 || (a === 169 && b === 254)) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+  }
+  // Block unique-local / loopback IPv6 literals.
+  if (host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80")) return false;
+
+  return true;
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -36,6 +72,7 @@ function stripHtml(html: string): string {
 }
 
 async function fetchPageText(url: string): Promise<string | null> {
+  if (!isPublicHttpUrl(url)) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
