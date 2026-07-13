@@ -1,10 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { SlidersHorizontal } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { Bookmark, Check, ChevronDown } from "lucide-react";
 
-export type FilterGroup = { key: string; label: string; options: [string, string][] };
+export type FilterGroup = {
+  key: string;
+  label: string;
+  options: [string, string][];
+  /** Label for the "clear this group" menu row (e.g. "Newest", "All levels"). */
+  anyLabel?: string;
+};
 
 /** All filter keys that participate in the querystring (kept in sync with page). */
 const FILTER_KEYS = [
@@ -31,117 +38,158 @@ function buildLink(params: Params, key: string, value: string | null): string {
   return qs ? `/internships?${qs}` : "/internships";
 }
 
-function Chip({
-  href,
-  active,
-  children,
+/** A single filter group rendered as a compact dropdown of mutually-exclusive options. */
+function FilterDropdown({
+  group,
+  value,
+  onSelect,
 }: {
-  href: string;
-  active: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${
-        active
-          ? "bg-accent text-white"
-          : "bg-surface text-secondary shadow-card hover:text-foreground"
-      }`}
-    >
-      {children}
-    </Link>
-  );
-}
-
-/**
- * Labeled chip groups. Always expanded on md+; on mobile they collapse behind a
- * "Filters" toggle with an active-count badge. The "More" row (level toggles,
- * saved, sort) is passed as a data-driven set of extra chips.
- */
-export function FilterBar({
-  params,
-  groups,
-  extraChips,
-  showLevelToggle,
-  activeFilterCount,
-}: {
-  params: Params;
-  groups: FilterGroup[];
-  /** Extra chips for the "More" row that aren't single-select groups. */
-  extraChips: { key: string; value: string; label: string; active: boolean }[];
-  showLevelToggle: boolean;
-  activeFilterCount: number;
+  group: FilterGroup;
+  value: string | undefined;
+  onSelect: (value: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const cur = (key: string) => params[key];
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = group.options.find(([v]) => v === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const pick = (v: string | null) => {
+    setOpen(false);
+    onSelect(v);
+  };
 
   return (
-    <div className="mb-5">
-      {/* Mobile toggle */}
+    <div ref={ref} className="relative">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="mb-2 flex items-center gap-2 rounded-xl bg-surface px-3.5 py-2 text-[13px] font-medium text-secondary shadow-card md:hidden"
+        aria-haspopup="listbox"
+        className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium shadow-card transition-colors ${
+          selected
+            ? "bg-accent text-white"
+            : "bg-surface text-secondary hover:text-foreground"
+        }`}
       >
-        <SlidersHorizontal className="h-4 w-4" />
-        Filters
-        {activeFilterCount > 0 && (
-          <span className="rounded-full bg-accent px-1.5 py-0.5 text-[11px] font-semibold text-white">
-            {activeFilterCount}
-          </span>
-        )}
+        <span>{selected ? selected[1] : group.label}</span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""} ${
+            selected ? "opacity-90" : "opacity-60"
+          }`}
+        />
       </button>
 
-      <div className={`${open ? "grid" : "hidden"} gap-2.5 md:grid`}>
-        {groups.map((g) => (
-          <div key={g.key} className="flex flex-wrap items-center gap-1.5">
-            <span className="w-20 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-tertiary">
-              {g.label}
-            </span>
-            {g.options.map(([v, label]) => (
-              <Chip
-                key={v}
-                href={buildLink(params, g.key, cur(g.key) === v ? null : v)}
-                active={cur(g.key) === v}
-              >
-                {label}
-              </Chip>
-            ))}
-          </div>
-        ))}
-
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="w-20 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-tertiary">
-            More
-          </span>
-          {showLevelToggle &&
-            (["internship", "new_grad"] as const).map((lvl) => (
-              <Chip
-                key={lvl}
-                href={buildLink(params, "level", cur("level") === lvl ? null : lvl)}
-                active={cur("level") === lvl}
-              >
-                {lvl === "internship" ? "Internships" : "New Grad"}
-              </Chip>
-            ))}
-          {extraChips.map((c) => (
-            <Chip
-              key={`${c.key}-${c.value}`}
-              href={buildLink(params, c.key, c.active ? null : c.value)}
-              active={c.active}
-            >
-              {c.label}
-            </Chip>
+      {open && (
+        <div
+          role="listbox"
+          className="absolute left-0 top-full z-30 mt-1.5 min-w-[180px] overflow-hidden rounded-xl border border-separator bg-surface p-1 shadow-raised"
+        >
+          <MenuItem active={!value} onClick={() => pick(null)}>
+            {group.anyLabel ?? `Any ${group.label.toLowerCase()}`}
+          </MenuItem>
+          <div className="my-1 h-px bg-separator" />
+          {group.options.map(([v, label]) => (
+            <MenuItem key={v} active={v === value} onClick={() => pick(v === value ? null : v)}>
+              {label}
+            </MenuItem>
           ))}
-          {activeFilterCount > 0 && (
-            <Link href="/internships" className="ml-1 text-[13px] font-medium text-accent">
-              Clear all ({activeFilterCount})
-            </Link>
-          )}
         </div>
-      </div>
+      )}
+    </div>
+  );
+}
+
+function MenuItem({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="option"
+      aria-selected={active}
+      onClick={onClick}
+      className={`flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors ${
+        active
+          ? "bg-accent-soft font-medium text-accent"
+          : "text-secondary hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
+      }`}
+    >
+      {children}
+      {active && <Check className="h-3.5 w-3.5 shrink-0" />}
+    </button>
+  );
+}
+
+/**
+ * Compact dropdown filter row. Each group is its own dropdown (label when
+ * empty, selected value + accent fill when set); "Saved" is a standalone
+ * toggle. Entirely URL-driven — selecting an option navigates so the server
+ * component re-queries; the querystring stays the single source of truth.
+ */
+export function FilterBar({
+  params,
+  groups,
+  savedActive,
+  activeFilterCount,
+}: {
+  params: Params;
+  groups: FilterGroup[];
+  savedActive: boolean;
+  activeFilterCount: number;
+}) {
+  const router = useRouter();
+  const go = (key: string, value: string | null) => router.push(buildLink(params, key, value));
+
+  return (
+    <div className="mb-5 flex flex-wrap items-center gap-2">
+      {groups.map((g) => (
+        <FilterDropdown
+          key={g.key}
+          group={g}
+          value={params[g.key]}
+          onSelect={(v) => go(g.key, v)}
+        />
+      ))}
+
+      <button
+        type="button"
+        onClick={() => go("saved", savedActive ? null : "1")}
+        aria-pressed={savedActive}
+        className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium shadow-card transition-colors ${
+          savedActive ? "bg-accent text-white" : "bg-surface text-secondary hover:text-foreground"
+        }`}
+      >
+        <Bookmark className="h-3.5 w-3.5" fill={savedActive ? "currentColor" : "none"} />
+        Saved
+      </button>
+
+      {activeFilterCount > 0 && (
+        <Link
+          href="/internships"
+          className="ml-0.5 rounded-full px-2.5 py-1.5 text-[13px] font-medium text-accent transition-colors hover:bg-accent-soft"
+        >
+          Clear all ({activeFilterCount})
+        </Link>
+      )}
     </div>
   );
 }
