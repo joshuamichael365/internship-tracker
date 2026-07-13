@@ -20,6 +20,13 @@ const KIND_FIELDS: Record<string, { field: string; label: string; placeholder: s
   greenhouse: [{ field: "boardToken", label: "Board token", placeholder: "stripe" }],
   lever: [{ field: "site", label: "Site name", placeholder: "palantir" }],
   smartrecruiters: [{ field: "company", label: "Company id", placeholder: "Visa" }],
+  ashby: [
+    {
+      field: "clientName",
+      label: "Job board name",
+      placeholder: "ramp (from jobs.ashbyhq.com/ramp)",
+    },
+  ],
   workday: [
     { field: "host", label: "Host", placeholder: "nvidia.wd5.myworkdayjobs.com" },
     { field: "tenant", label: "Tenant", placeholder: "nvidia" },
@@ -41,6 +48,7 @@ const KIND_LABELS: Record<string, string> = {
   greenhouse: "Greenhouse",
   lever: "Lever",
   smartrecruiters: "SmartRecruiters",
+  ashby: "Ashby",
   workday: "Workday",
   rss: "RSS / Atom",
   instagram_mirror: "Instagram mirror",

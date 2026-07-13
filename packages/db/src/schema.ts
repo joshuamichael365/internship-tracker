@@ -16,6 +16,7 @@ export const sourceKind = pgEnum("source_kind", [
   "greenhouse",
   "lever",
   "smartrecruiters",
+  "ashby",
   "workday",
   "rss",
   "instagram_mirror",

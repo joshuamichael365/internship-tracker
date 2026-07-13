@@ -71,6 +71,13 @@
       "when": 1783879253189,
       "tag": "0009_absent_yellowjacket",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783918858168,
+      "tag": "0010_perfect_vivisector",
+      "breakpoints": true
     }
   ]
 }

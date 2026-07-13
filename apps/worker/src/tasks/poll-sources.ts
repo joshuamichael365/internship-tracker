@@ -4,6 +4,7 @@ import type { NormalizedPosting } from "@tracker/shared";
 import { ingestPostings } from "../ingest.js";
 import { pollGithubRepo } from "../sources/github.js";
 import {
+  pollAshby,
   pollGreenhouse,
   pollLever,
   pollSmartRecruiters,
@@ -28,6 +29,8 @@ async function pollOne(
       return pollLever(cfg as { site: string }, cache);
     case "smartrecruiters":
       return pollSmartRecruiters(cfg as { company: string }, cache);
+    case "ashby":
+      return pollAshby(cfg as { clientName: string }, cache);
     case "workday":
       return pollWorkday(cfg as unknown as { host: string; tenant: string; site: string }, cache);
     case "rss":
