@@ -87,9 +87,11 @@ body {
   background: var(--accent-soft);
 }
 
-/* Bricolage Grotesque display face — scoped brand voice for the landing;
-   the variable is set by next/font on the landing route wrapper only. */
-.font-display {
+/* Bricolage Grotesque display face — the brand voice, applied at brand moments
+   only (wordmark, page titles, hero) and never on UI labels/data/buttons. The
+   --font-display variable is set app-wide by next/font on the <html> element.
+   Declared as a Tailwind v4 @utility so the class is actually emitted. */
+@utility font-display {
   font-family: var(--font-display), var(--font-sans);
   letter-spacing: -0.02em;
 }

@@ -8,7 +8,7 @@
  * colour moment — instead of the safe centred / gradient-text default.
  */
 
-import { motion } from "motion/react";
+import { motion, MotionConfig, type Variants } from "motion/react";
 import {
   ArrowRight,
   BarChart3,
@@ -67,24 +67,29 @@ function SignInButton({
   );
 }
 
-/* ---------- scroll reveal ---------- */
+/* ---------- scroll reveal system ---------- */
 
-function Reveal({
-  children,
-  className = "",
-  x = 0,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  x?: number;
-}) {
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+// Container orchestrates a cascade; each item rises + sharpens from a soft blur.
+const stagger: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.09 } },
+};
+const rise: Variants = {
+  hidden: { opacity: 0, y: 28, filter: "blur(6px)" },
+  show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.65, ease: EASE } },
+};
+
+/** A block that cascades its children in as it scrolls into view. */
+function Reveal({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y: 20, x }}
-      whileInView={{ opacity: 1, y: 0, x: 0 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      variants={stagger}
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, margin: "-100px" }}
     >
       {children}
     </motion.div>
@@ -205,30 +210,43 @@ function FeatureRow({
   flip?: boolean;
 }) {
   return (
-    <Reveal x={flip ? 24 : -24} className="grid items-center gap-8 py-14 sm:py-20 md:grid-cols-2 md:gap-14">
-      <div className={flip ? "md:order-2" : ""}>
-        <div className="flex items-center gap-3">
+    <motion.div
+      variants={stagger}
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, margin: "-120px" }}
+      className="grid items-center gap-8 py-14 sm:py-20 md:grid-cols-2 md:gap-14"
+    >
+      <motion.div variants={stagger} className={flip ? "md:order-2" : ""}>
+        <motion.div variants={rise} className="flex items-center gap-3">
           <span className="font-display text-[15px] font-bold text-accent">{index}</span>
           <CompassBar />
           <span className="text-[13px] font-semibold text-secondary">{kicker}</span>
-        </div>
-        <h3 className="font-display mt-3 text-[28px] font-bold leading-[1.05] tracking-tight sm:text-[36px]">
+        </motion.div>
+        <motion.h3
+          variants={rise}
+          className="font-display mt-3 text-[28px] font-bold leading-[1.05] tracking-tight sm:text-[36px]"
+        >
           {title}
-        </h3>
-        <p className="mt-3 text-[16px] leading-relaxed text-secondary">{body}</p>
-        <ul className="mt-5 grid gap-2.5">
+        </motion.h3>
+        <motion.p variants={rise} className="mt-3 text-[16px] leading-relaxed text-secondary">
+          {body}
+        </motion.p>
+        <motion.ul variants={stagger} className="mt-5 grid gap-2.5">
           {points.map((p) => (
-            <li key={p} className="flex items-start gap-2.5 text-[15px]">
+            <motion.li variants={rise} key={p} className="flex items-start gap-2.5 text-[15px]">
               <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft">
                 <Check className="h-3 w-3 text-accent" />
               </span>
               <span className="text-secondary">{p}</span>
-            </li>
+            </motion.li>
           ))}
-        </ul>
-      </div>
-      <div className={flip ? "md:order-1" : ""}>{visual}</div>
-    </Reveal>
+        </motion.ul>
+      </motion.div>
+      <motion.div variants={rise} className={flip ? "md:order-1" : ""}>
+        {visual}
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -245,6 +263,7 @@ const SECONDARY = [
 
 export function Landing() {
   return (
+    <MotionConfig reducedMotion="user">
     <div className="relative min-h-dvh overflow-x-hidden bg-background text-foreground">
       <div
         aria-hidden
@@ -423,20 +442,22 @@ export function Landing() {
       {/* secondary grid */}
       <section className="mx-auto max-w-6xl px-5 py-10">
         <Reveal className="mb-10">
-          <CompassBar />
-          <h2 className="font-display mt-3 max-w-xl text-[28px] font-bold leading-[1.05] tracking-tight sm:text-[38px]">
+          <motion.div variants={rise}>
+            <CompassBar />
+          </motion.div>
+          <motion.h2
+            variants={rise}
+            className="font-display mt-3 max-w-xl text-[28px] font-bold leading-[1.05] tracking-tight sm:text-[38px]"
+          >
             Everything else you&rsquo;d want, already built in.
-          </h2>
+          </motion.h2>
         </Reveal>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Reveal className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {SECONDARY.map((f) => (
             <motion.div
               key={f.title}
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-40px" }}
-              transition={{ duration: 0.45 }}
-              whileHover={{ y: -4 }}
+              variants={rise}
+              whileHover={{ y: -4, transition: { duration: 0.2 } }}
               className="h-full rounded-2xl bg-surface p-5 shadow-card"
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft">
@@ -446,13 +467,14 @@ export function Landing() {
               <p className="mt-1.5 text-[14px] leading-relaxed text-secondary">{f.body}</p>
             </motion.div>
           ))}
-        </div>
+        </Reveal>
       </section>
 
       {/* final CTA — one committed ink colour moment */}
       <section className="mx-auto max-w-6xl px-5 py-16 sm:py-24">
         <Reveal>
-          <div
+          <motion.div
+            variants={rise}
             className="relative overflow-hidden rounded-[32px] px-6 py-20 text-center"
             style={{ background: "#221d33" }}
           >
@@ -478,7 +500,7 @@ export function Landing() {
                 <SignInButton variant="light" />
               </div>
             </div>
-          </div>
+          </motion.div>
         </Reveal>
       </section>
 
@@ -499,5 +521,6 @@ export function Landing() {
         </div>
       </footer>
     </div>
+    </MotionConfig>
   );
 }

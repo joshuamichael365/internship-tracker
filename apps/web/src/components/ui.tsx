@@ -5,7 +5,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
   return (
     <FadeIn className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-[28px] font-bold tracking-tight">{title}</h1>
+        <h1 className="font-display text-[28px] font-bold tracking-tight">{title}</h1>
         {subtitle && <p className="mt-1 text-[15px] text-secondary">{subtitle}</p>}
       </div>
       {actions}

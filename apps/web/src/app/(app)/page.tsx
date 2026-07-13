@@ -155,7 +155,7 @@ export default async function Dashboard() {
         <Link href="/internships" className="group">
           <div className="flex h-full flex-col justify-between rounded-2xl bg-surface p-5 shadow-card transition-shadow group-hover:shadow-raised">
             <div>
-              <h1 className="text-[19px] font-bold tracking-tight">{headerTitle}</h1>
+              <h1 className="font-display text-[20px] font-bold tracking-tight">{headerTitle}</h1>
               <p className="mt-1 text-[14px] text-secondary">
                 {attention.length > 0
                   ? `${attention.length} thing${attention.length === 1 ? "" : "s"} need you today`

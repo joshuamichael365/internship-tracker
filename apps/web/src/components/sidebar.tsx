@@ -135,7 +135,7 @@ export function Sidebar({ account }: { account?: SidebarAccount | null }) {
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-separator bg-[var(--sidebar)] px-3 py-5 backdrop-blur-xl md:flex">
         <div className="mb-6 flex items-center gap-2.5 px-3">
           <LogoMark size={32} />
-          <span className="text-[17px] font-semibold tracking-tight">Erevnitis</span>
+          <span className="font-display text-[18px] font-bold tracking-tight">Erevnitis</span>
         </div>
         <nav className="flex flex-1 flex-col gap-0.5">
           {NAV.map((item) => (
@@ -152,7 +152,7 @@ export function Sidebar({ account }: { account?: SidebarAccount | null }) {
 
       {/* Mobile top bar */}
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-separator bg-[var(--sidebar)] px-4 py-3 backdrop-blur-xl md:hidden">
-        <span className="flex shrink-0 items-center gap-2 text-[17px] font-semibold tracking-tight">
+        <span className="font-display flex shrink-0 items-center gap-2 text-[18px] font-bold tracking-tight">
           <LogoMark size={26} />
           Erevnitis
         </span>
