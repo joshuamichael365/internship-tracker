@@ -2,41 +2,44 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Apple HIG-inspired tokens, adapted for web */
+/* Erevnitis identity: warm neutral base, a lavender/blue pair reserved for
+   highlights only (primary actions, links, badges, the compass mark) — never
+   painted broadly. Status colors (success/warning/danger) stay semantic and
+   untouched so stage/mode meaning never depends on the theme. */
 :root {
-  --background: #f5f5f7;
-  --surface: #ffffff;
-  --surface-secondary: #fbfbfd;
-  --sidebar: rgba(245, 245, 247, 0.85);
-  --text: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --text-tertiary: #a1a1a6;
-  --accent: #0071e3;
-  --accent-soft: rgba(0, 113, 227, 0.1);
-  --separator: rgba(0, 0, 0, 0.08);
+  --background: #faf6f0;
+  --surface: #fffdfa;
+  --surface-secondary: #f3ede3;
+  --sidebar: rgba(250, 246, 240, 0.85);
+  --text: #2b2620;
+  --text-secondary: #7a7168;
+  --text-tertiary: #a89e91;
+  --accent: #5d5fef;
+  --accent-soft: rgba(93, 95, 239, 0.1);
+  --separator: rgba(43, 38, 32, 0.08);
   --success: #34c759;
   --warning: #ff9f0a;
   --danger: #ff3b30;
-  --purple: #af52de;
+  --purple: #a78bfa;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.06);
   --shadow-raised: 0 4px 12px rgba(0, 0, 0, 0.08), 0 12px 32px rgba(0, 0, 0, 0.12);
 }
 
 .dark {
-  --background: #161617;
-  --surface: #1d1d1f;
-  --surface-secondary: #232326;
-  --sidebar: rgba(22, 22, 23, 0.85);
-  --text: #f5f5f7;
-  --text-secondary: #a1a1a6;
-  --text-tertiary: #6e6e73;
-  --accent: #0a84ff;
-  --accent-soft: rgba(10, 132, 255, 0.16);
-  --separator: rgba(255, 255, 255, 0.1);
+  --background: #1b1917;
+  --surface: #242220;
+  --surface-secondary: #2c2925;
+  --sidebar: rgba(27, 25, 23, 0.85);
+  --text: #f5f1ea;
+  --text-secondary: #a89e91;
+  --text-tertiary: #6b655c;
+  --accent: #7c7eff;
+  --accent-soft: rgba(124, 126, 255, 0.16);
+  --separator: rgba(245, 241, 234, 0.1);
   --success: #30d158;
   --warning: #ffd60a;
   --danger: #ff453a;
-  --purple: #bf5af2;
+  --purple: #c4a9ff;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
   --shadow-raised: 0 4px 12px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.5);
 }

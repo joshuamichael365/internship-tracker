@@ -16,6 +16,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { signOutAction } from "@/app/actions/auth";
+import { LogoMark } from "./logo-mark";
 import { ThemeToggle } from "./theme-toggle";
 
 export interface SidebarAccount {
@@ -133,10 +134,8 @@ export function Sidebar({ account }: { account?: SidebarAccount | null }) {
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-separator bg-[var(--sidebar)] px-3 py-5 backdrop-blur-xl md:flex">
         <div className="mb-6 flex items-center gap-2.5 px-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-accent text-white shadow-card">
-            <SquareKanban className="h-4.5 w-4.5" />
-          </div>
-          <span className="text-[17px] font-semibold tracking-tight">Internships</span>
+          <LogoMark size={32} />
+          <span className="text-[17px] font-semibold tracking-tight">Erevnitis</span>
         </div>
         <nav className="flex flex-1 flex-col gap-0.5">
           {NAV.map((item) => (
@@ -153,7 +152,10 @@ export function Sidebar({ account }: { account?: SidebarAccount | null }) {
 
       {/* Mobile top bar */}
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-separator bg-[var(--sidebar)] px-4 py-3 backdrop-blur-xl md:hidden">
-        <span className="shrink-0 text-[17px] font-semibold tracking-tight">Internships</span>
+        <span className="flex shrink-0 items-center gap-2 text-[17px] font-semibold tracking-tight">
+          <LogoMark size={26} />
+          Erevnitis
+        </span>
         <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
           <div className="min-w-0 max-w-[160px] flex-1">
             <AccountFooter account={account ?? null} compact />
