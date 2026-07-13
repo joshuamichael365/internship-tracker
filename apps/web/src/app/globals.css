@@ -87,6 +87,13 @@ body {
   background: var(--accent-soft);
 }
 
+/* Bricolage Grotesque display face — scoped brand voice for the landing;
+   the variable is set by next/font on the landing route wrapper only. */
+.font-display {
+  font-family: var(--font-display), var(--font-sans);
+  letter-spacing: -0.02em;
+}
+
 /* Consistent keyboard focus ring on every interactive element. */
 a:focus-visible,
 button:focus-visible,
