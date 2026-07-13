@@ -34,9 +34,15 @@ function isPublicHttpUrl(raw: string): boolean {
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") return false;
 
-  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, ""); // strip IPv6 brackets
+  const host = u.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "") // strip IPv6 brackets
+    .replace(/\.$/, ""); // strip a trailing FQDN dot so "127.0.0.1." can't dodge the IP checks
   if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return false;
   if (host === "::1" || host === "0.0.0.0") return false;
+  // Bare integer or hex hostnames are IP encodings (2130706433, 0x7f000001) —
+  // never a real job-board host, and they'd bypass the dotted-quad checks below.
+  if (/^(0x[0-9a-f]+|\d+)$/i.test(host)) return false;
 
   // Block private / loopback / link-local IPv4 literals (incl. cloud metadata 169.254.x.x).
   const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
