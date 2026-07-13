@@ -22,7 +22,11 @@ export function Card({ children, className = "" }: { children: ReactNode; classN
 export function EmptyState({ icon, title, hint }: { icon?: ReactNode; title: string; hint?: string }) {
   return (
     <Card className="flex flex-col items-center gap-2 py-14 text-center">
-      {icon && <div className="mb-1 text-tertiary">{icon}</div>}
+      {icon && (
+        <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+          {icon}
+        </div>
+      )}
       <p className="text-[15px] font-medium">{title}</p>
       {hint && <p className="max-w-sm text-[13px] text-secondary">{hint}</p>}
     </Card>

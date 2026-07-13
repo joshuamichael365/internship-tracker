@@ -18,18 +18,39 @@ import {
   writingSamples,
 } from "@tracker/db";
 import { auth } from "@/auth";
-import { Card, PageHeader } from "@/components/ui";
+import { Card } from "@/components/ui";
 import { PostingCard } from "@/components/posting-card";
-import { StaggerGrid } from "@/components/motion";
-import { greeting, timeAgo, todayLong } from "@/lib/format";
+import { FadeIn, StaggerGrid } from "@/components/motion";
+import { greeting, timeAgo } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
+/** Tiny inline trend line for the hero tile — 7 daily posting counts. */
+function Sparkline({ data }: { data: number[] }) {
+  if (data.length < 2) return null;
+  const max = Math.max(1, ...data);
+  const pts = data
+    .map((v, i) => `${(i / (data.length - 1)) * 100},${28 - (v / max) * 24}`)
+    .join(" ");
+  return (
+    <svg width="112" height="34" viewBox="0 0 100 34" preserveAspectRatio="none" aria-hidden="true">
+      <polyline
+        points={pts}
+        fill="none"
+        stroke="var(--accent)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export default async function Dashboard() {
   const now = new Date();
-  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-  const [session, [newToday], [activeApps], [dueSoon], latest, dueReminders, blocked, [prof], [sampleRow], [resumeRow]] =
+  const [session, [newToday], [activeApps], [dueSoon], dailyRows, latest, dueReminders, blocked, [prof], [sampleRow], [resumeRow]] =
     await Promise.all([
       auth(),
       db
@@ -44,6 +65,13 @@ export default async function Dashboard() {
         .select({ n: count() })
         .from(reminders)
         .where(and(eq(reminders.done, false), sql`${reminders.dueAt} < now() + interval '7 days'`)),
+      // Daily new-posting counts for the last 7 days — feeds the hero sparkline.
+      db.execute<{ d: string; n: number }>(
+        sql`select to_char(date_trunc('day', ${postings.firstSeenAt}), 'YYYY-MM-DD') d, count(*)::int n
+            from ${postings}
+            where ${postings.status} = 'active' and ${postings.firstSeenAt} > now() - interval '7 days'
+            group by 1 order by 1`,
+      ),
       db
         .select()
         .from(postings)
@@ -85,6 +113,14 @@ export default async function Dashboard() {
   const profileData = (prof?.data ?? {}) as Record<string, string>;
   const displayName = session?.user?.name || profileData.fullName || null;
   const headerTitle = greeting(displayName);
+
+  // Build a 7-slot daily series, filling any gap days with 0.
+  const dayMap = new Map([...dailyRows].map((r) => [r.d, Number(r.n)]));
+  const daily = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now.getTime() - (6 - i) * 24 * 60 * 60 * 1000);
+    return dayMap.get(d.toISOString().slice(0, 10)) ?? 0;
+  });
+
   const setupSteps = [
     { key: "profile", label: "Fill your auto-fill profile", href: "/profile", done: !!profileData.fullName },
     { key: "samples", label: "Add writing samples", href: "/profile", done: (sampleRow?.n ?? 0) > 0 },
@@ -109,15 +145,67 @@ export default async function Dashboard() {
     })),
   ];
 
+  const tileBase =
+    "flex h-full flex-col justify-between rounded-2xl bg-surface p-4 shadow-card transition-shadow hover:shadow-raised";
+
   return (
     <>
-      <PageHeader
-        title={headerTitle}
-        subtitle={headerTitle === "Dashboard" ? "New postings, active applications, and upcoming deadlines at a glance" : todayLong()}
-      />
+      {/* Bento hero: greeting + headline metric alongside two stat tiles. */}
+      <FadeIn className="mb-4 grid gap-4 md:grid-cols-[1.4fr_1fr]">
+        <Link href="/internships" className="group">
+          <div className="flex h-full flex-col justify-between rounded-2xl bg-surface p-5 shadow-card transition-shadow group-hover:shadow-raised">
+            <div>
+              <h1 className="text-[19px] font-bold tracking-tight">{headerTitle}</h1>
+              <p className="mt-1 text-[14px] text-secondary">
+                {attention.length > 0
+                  ? `${attention.length} thing${attention.length === 1 ? "" : "s"} need you today`
+                  : "You're all caught up today"}
+              </p>
+            </div>
+            <div className="mt-8 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[13px] font-medium text-secondary">New in last 24h</p>
+                <p className="mt-1 text-[40px] font-bold leading-none tracking-tight text-accent">
+                  {newToday?.n ?? 0}
+                </p>
+              </div>
+              <Sparkline data={daily} />
+            </div>
+          </div>
+        </Link>
+
+        <div className="grid grid-rows-2 gap-4">
+          <Link href="/tracker" className="group">
+            <div className={tileBase}>
+              <div className="flex items-center justify-between">
+                <p className="text-[13px] font-medium text-secondary">Active applications</p>
+                <ClipboardList className="h-4 w-4 text-accent" />
+              </div>
+              <div>
+                <p className="text-[26px] font-bold tracking-tight">{activeApps?.n ?? 0}</p>
+                <p className="text-[12px] text-tertiary">in progress</p>
+              </div>
+            </div>
+          </Link>
+          <div className={tileBase}>
+            <div className="flex items-center justify-between">
+              <p className="text-[13px] font-medium text-secondary">Reminders this week</p>
+              <Bell className="h-4 w-4 text-warning" />
+            </div>
+            <div>
+              <p className={`text-[26px] font-bold tracking-tight ${dueReminders.length > 0 ? "text-warning" : ""}`}>
+                {dueSoon?.n ?? 0}
+              </p>
+              <p className="text-[12px] text-tertiary">
+                {dueReminders.length > 0 ? `${dueReminders.length} due now` : "nothing overdue"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </FadeIn>
 
       {!setupComplete && (
-        <Card className="mb-6">
+        <Card className="mb-4">
           <div className="mb-3 flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-accent" />
             <h2 className="text-[15px] font-semibold">Get set up</h2>
@@ -157,41 +245,6 @@ export default async function Dashboard() {
           </ul>
         </Card>
       )}
-
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <Link href="/internships">
-          <Card className="transition-shadow hover:shadow-raised">
-            <div className="flex items-center justify-between">
-              <p className="text-[13px] font-medium text-secondary">New in last 24h</p>
-              <Sparkles className="h-4 w-4 text-accent" />
-            </div>
-            <p className="mt-1 text-[34px] font-bold tracking-tight">{newToday?.n ?? 0}</p>
-            <p className="text-[12px] font-medium text-success">
-              +{newToday?.n ?? 0} today
-            </p>
-          </Card>
-        </Link>
-        <Link href="/tracker">
-          <Card className="transition-shadow hover:shadow-raised">
-            <div className="flex items-center justify-between">
-              <p className="text-[13px] font-medium text-secondary">Active applications</p>
-              <ClipboardList className="h-4 w-4 text-accent" />
-            </div>
-            <p className="mt-1 text-[34px] font-bold tracking-tight">{activeApps?.n ?? 0}</p>
-            <p className="text-[12px] font-medium text-tertiary">in progress</p>
-          </Card>
-        </Link>
-        <Card>
-          <div className="flex items-center justify-between">
-            <p className="text-[13px] font-medium text-secondary">Reminders this week</p>
-            <Bell className="h-4 w-4 text-warning" />
-          </div>
-          <p className="mt-1 text-[34px] font-bold tracking-tight">{dueSoon?.n ?? 0}</p>
-          <p className="text-[12px] font-medium text-tertiary">
-            {dueReminders.length > 0 ? `${dueReminders.length} due now` : "nothing overdue"}
-          </p>
-        </Card>
-      </div>
 
       <Card className="mb-6">
         <div className="mb-3 flex items-center gap-2">
