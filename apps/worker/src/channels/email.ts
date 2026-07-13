@@ -10,7 +10,7 @@ export async function sendEmail(subject: string, html: string): Promise<boolean>
     method: "POST",
     headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
     body: JSON.stringify({
-      from: process.env.RESEND_FROM ?? "Internships <onboarding@resend.dev>",
+      from: process.env.RESEND_FROM ?? "Erevnitis <onboarding@resend.dev>",
       to: [to],
       subject,
       html,

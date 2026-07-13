@@ -94,7 +94,7 @@ export async function deliver(
     sends.push({ channel: "push", ok: await sendPush({ title: msg.title, body: msg.body, url: msg.url }) });
   }
   if (allow("email")) {
-    const html = opts?.emailHtml ?? `<p>${msg.body}</p><p><a href="${msg.url}">Open in Internships</a></p>`;
+    const html = opts?.emailHtml ?? `<p>${msg.body}</p><p><a href="${msg.url}">Open in Erevnitis</a></p>`;
     sends.push({ channel: "email", ok: await sendEmail(msg.title, html) });
   }
   if (allow("sms")) {
