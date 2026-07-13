@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { Sidebar } from "@/components/sidebar";
+import { TopNav } from "@/components/top-nav";
 import { ToastProvider } from "@/components/toast";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -15,10 +15,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <ToastProvider>
       <div className="min-h-dvh">
-        <Sidebar account={account} />
-        <main className="px-5 py-6 md:ml-60 md:px-10 md:py-8">
-          <div className="mx-auto max-w-6xl">{children}</div>
-        </main>
+        <TopNav account={account} />
+        <main className="mx-auto max-w-7xl px-5 py-6 md:px-10 md:py-8">{children}</main>
       </div>
     </ToastProvider>
   );
