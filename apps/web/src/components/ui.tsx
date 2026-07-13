@@ -29,6 +29,46 @@ export function EmptyState({ icon, title, hint }: { icon?: ReactNode; title: str
   );
 }
 
+/**
+ * Shared toggle switch — was three near-identical copies (sources-manager,
+ * auto-apply-settings, notification-settings) before being unified here.
+ * Modern-iOS-style elongated pill (wider track, more thumb travel than the
+ * squatter shape this replaced) in the brand accent when on, rather than
+ * --success green — green stays reserved for actual success states
+ * (Applied/Offer) elsewhere in the app.
+ */
+export function Switch({
+  checked,
+  onChange,
+  label,
+  disabled = false,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative h-[28px] w-[50px] shrink-0 rounded-full transition-colors active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 ${
+        checked ? "bg-accent" : "bg-black/[0.15] dark:bg-white/[0.2]"
+      }`}
+    >
+      <span
+        className={`absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-card transition-[left] ${
+          checked ? "left-[25px]" : "left-[3px]"
+        }`}
+      />
+    </button>
+  );
+}
+
 const MODE_STYLES: Record<string, string> = {
   manual: "bg-black/[0.06] text-secondary dark:bg-white/[0.1]",
   assist: "bg-accent-soft text-accent",

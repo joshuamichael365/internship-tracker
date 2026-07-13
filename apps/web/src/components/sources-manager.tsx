@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { CircleAlert, Plus, Trash2 } from "lucide-react";
 import { addPresetSource, addSource, deleteSource, toggleSource } from "@/app/actions/sources";
 import { useToast } from "@/components/toast";
+import { Switch } from "@/components/ui";
 
 const KIND_FIELDS: Record<string, { field: string; label: string; placeholder: string }[]> = {
   github_repo: [
@@ -78,17 +79,11 @@ export function SourcesManager({ sources, hasPresets }: { sources: SourceRow[]; 
                 </p>
               )}
             </div>
-            <button
-              onClick={() => startTransition(() => toggleSource(s.id, !s.enabled))}
-              role="switch"
-              aria-checked={s.enabled}
-              aria-label={`${s.name} enabled`}
-              className={`relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors active:scale-[0.98] ${s.enabled ? "bg-success" : "bg-black/[0.15] dark:bg-white/[0.2]"}`}
-            >
-              <span
-                className={`absolute top-[2px] h-[22px] w-[22px] rounded-full bg-white shadow-card transition-[left] ${s.enabled ? "left-[20px]" : "left-[2px]"}`}
-              />
-            </button>
+            <Switch
+              checked={s.enabled}
+              onChange={(v) => startTransition(() => toggleSource(s.id, v))}
+              label={`${s.name} enabled`}
+            />
             <button
               onClick={() =>
                 startTransition(async () => {

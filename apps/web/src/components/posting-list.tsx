@@ -9,7 +9,7 @@ import { LOCATION_MODE_LABELS, ROLE_LABELS, timeAgo } from "@/lib/format";
 import type { PostingCardData } from "@/components/posting-card";
 
 const NEUTRAL_CHIP =
-  "rounded-full bg-black/[0.06] px-2 py-0.5 text-[11px] font-semibold text-secondary dark:bg-white/[0.1] h-[19px] inline-flex items-center";
+  "rounded-full bg-black/[0.06] px-2 py-0.5 text-[11px] font-semibold text-secondary dark:bg-white/[0.1] h-[19px] inline-flex items-center whitespace-nowrap";
 
 function ListRow({ posting }: { posting: PostingCardData }) {
   const router = useRouter();
@@ -32,7 +32,7 @@ function ListRow({ posting }: { posting: PostingCardData }) {
         <p className="truncate text-[12px] text-secondary">{posting.company}</p>
       </div>
 
-      <div className="hidden w-20 shrink-0 sm:block">
+      <div className="hidden w-24 shrink-0 sm:block">
         {posting.terms[0] && <span className={NEUTRAL_CHIP}>{posting.terms[0]}</span>}
       </div>
 

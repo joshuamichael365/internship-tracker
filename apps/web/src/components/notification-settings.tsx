@@ -5,6 +5,7 @@ import { BellRing } from "lucide-react";
 import type { NotificationRules } from "@tracker/shared";
 import { updateSettings, type SettingsUpdate } from "@/app/actions/settings";
 import { useToast } from "@/components/toast";
+import { Switch } from "@/components/ui";
 
 interface Props {
   initial: {
@@ -33,30 +34,6 @@ function HourSelect({ value, onChange }: { value: number; onChange: (h: number) 
         <option key={h} value={h}>{HOUR_LABEL(h)}</option>
       ))}
     </select>
-  );
-}
-
-function Toggle({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-}) {
-  return (
-    <button
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={`relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors active:scale-[0.98] ${checked ? "bg-success" : "bg-black/[0.15] dark:bg-white/[0.2]"}`}
-    >
-      <span
-        className={`absolute top-[2px] h-[22px] w-[22px] rounded-full bg-white shadow-card transition-[left] ${checked ? "left-[20px]" : "left-[2px]"}`}
-      />
-    </button>
   );
 }
 
@@ -179,7 +156,7 @@ export function NotificationSettings({ initial, vapidPublicKey }: Props) {
               <span className="text-[14px]">{label}</span>
               {note && <p className="mt-0.5 text-[12px] text-tertiary">{note}</p>}
             </div>
-            <Toggle
+            <Switch
               label={label}
               checked={state.channels[key]}
               onChange={(v) => patch({ channels: { ...state.channels, [key]: v } })}
@@ -269,7 +246,7 @@ export function NotificationSettings({ initial, vapidPublicKey }: Props) {
               Widen beyond internships without switching tools.
             </p>
           </div>
-          <Toggle
+          <Switch
             label="Include new-grad roles"
             checked={state.includeNewGrad}
             onChange={(v) => patch({ includeNewGrad: v })}

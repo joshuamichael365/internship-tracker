@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 import { updateSettings } from "@/app/actions/settings";
 import { useToast } from "@/components/toast";
+import { Switch } from "@/components/ui";
 
 /**
  * Master kill switch for Full Auto-Apply. Off by default and enforced server-side
@@ -48,17 +49,7 @@ export function AutoApplySettings({ initial }: { initial: boolean }) {
           </p>
         </div>
       </div>
-      <button
-        role="switch"
-        aria-checked={enabled}
-        aria-label="Enable Full Auto-Apply"
-        onClick={() => toggle(!enabled)}
-        className={`relative h-[26px] w-[44px] shrink-0 rounded-full transition-colors active:scale-[0.98] ${enabled ? "bg-success" : "bg-black/[0.15] dark:bg-white/[0.2]"}`}
-      >
-        <span
-          className={`absolute top-[2px] h-[22px] w-[22px] rounded-full bg-white shadow-card transition-[left] ${enabled ? "left-[20px]" : "left-[2px]"}`}
-        />
-      </button>
+      <Switch checked={enabled} onChange={toggle} label="Enable Full Auto-Apply" />
     </div>
   );
 }
