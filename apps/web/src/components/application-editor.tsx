@@ -155,9 +155,11 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
                   return;
                 }
                 setShowOptin(false);
-                startTransition(() =>
-                  setApplicationMode(data.id, data.mode === m.value ? null : m.value),
-                );
+                const clearing = data.mode === m.value;
+                startTransition(async () => {
+                  await setApplicationMode(data.id, clearing ? null : m.value);
+                  showToast(clearing ? "Mode cleared — nothing is assumed" : `Mode set to ${m.label}`);
+                });
               }}
               className={`rounded-xl border p-3 text-left transition-colors active:scale-[0.98] disabled:active:scale-100 ${
                 data.mode === m.value
@@ -187,7 +189,12 @@ export function ApplicationEditor({ data }: { data: EditorData }) {
             ·{" "}
             <button
               disabled={pending}
-              onClick={() => startTransition(() => setApplicationMode(data.id, null))}
+              onClick={() =>
+                startTransition(async () => {
+                  await setApplicationMode(data.id, null);
+                  showToast("Auto-Apply revoked — this application will no longer auto-submit");
+                })
+              }
               className="font-medium text-danger transition-colors hover:underline active:scale-[0.98] disabled:active:scale-100 disabled:opacity-50"
             >
               Revoke

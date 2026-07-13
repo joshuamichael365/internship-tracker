@@ -32,7 +32,7 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 const NEUTRAL_CHIP =
-  "rounded-full bg-black/[0.06] px-2 py-0.5 text-[11px] font-semibold text-secondary dark:bg-white/[0.1]";
+  "rounded-full bg-black/[0.06] px-2 py-0.5 text-[11px] font-semibold text-secondary dark:bg-white/[0.1] whitespace-nowrap shrink-0";
 
 export function PostingCard({ posting }: { posting: PostingCardData }) {
   const router = useRouter();
