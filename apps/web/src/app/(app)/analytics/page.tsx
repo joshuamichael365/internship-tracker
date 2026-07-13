@@ -22,6 +22,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
+import { ProportionBars, SegmentedBar } from "@/components/charts";
 import { type Stage } from "@/components/tracker-board";
 import { timeAgo } from "@/lib/format";
 
@@ -73,47 +74,6 @@ const MODE_LABEL: Record<string, string> = {
   auto: "Auto-Apply",
   unset: "Not chosen",
 };
-
-/** One labeled horizontal proportion bar — width is this row's share of `total`. */
-function BarRow({
-  label,
-  value,
-  total,
-  colorVar,
-  dashed = false,
-}: {
-  label: string;
-  value: number;
-  total: number;
-  colorVar: string;
-  dashed?: boolean;
-}) {
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-  return (
-    <div className="flex items-center gap-3">
-      <span className="flex w-[132px] shrink-0 items-center gap-1.5 truncate text-[13px] text-secondary">
-        <span
-          className={`h-2 w-2 shrink-0 rounded-full ${dashed ? "border border-dashed" : ""}`}
-          style={
-            dashed
-              ? { borderColor: `var(${colorVar})`, background: "transparent" }
-              : { background: `var(${colorVar})` }
-          }
-        />
-        {label}
-      </span>
-      <div className="h-2 flex-1 rounded-full bg-black/[0.06] dark:bg-white/[0.08]">
-        <div
-          className="h-2 rounded-full transition-all"
-          style={{ width: `${pct}%`, background: `var(${colorVar})` }}
-        />
-      </div>
-      <span className="w-16 shrink-0 text-right text-[12px] font-semibold tabular-nums text-secondary">
-        {value} <span className="text-tertiary">({pct}%)</span>
-      </span>
-    </div>
-  );
-}
 
 function StatCard({
   icon: Icon,
@@ -286,11 +246,10 @@ export default async function AnalyticsPage() {
             hint="Track a posting from Internships to start building pipeline data."
           />
         ) : (
-          <div className="grid gap-2.5">
-            {pipelineRows.map((r) => (
-              <BarRow key={r.stage} label={r.label} value={r.n} total={totalApps} colorVar={STAGE_VAR[r.stage]} />
-            ))}
-          </div>
+          <ProportionBars
+            total={totalApps}
+            data={pipelineRows.map((r) => ({ label: r.label, value: r.n, colorVar: STAGE_VAR[r.stage] }))}
+          />
         )}
       </Card>
 
@@ -303,18 +262,14 @@ export default async function AnalyticsPage() {
         {totalApps === 0 ? (
           <EmptyState title="No applications yet" hint="A mode badge appears here once you pick one per application." />
         ) : (
-          <div className="grid gap-2.5">
-            {modeRowsFilled.map((r) => (
-              <BarRow
-                key={r.mode}
-                label={MODE_LABEL[r.mode]}
-                value={r.n}
-                total={totalApps}
-                colorVar={MODE_VAR[r.mode]}
-                dashed={r.mode === "unset"}
-              />
-            ))}
-          </div>
+          <SegmentedBar
+            data={modeRowsFilled.map((r) => ({
+              label: MODE_LABEL[r.mode],
+              value: r.n,
+              colorVar: MODE_VAR[r.mode],
+              dashed: r.mode === "unset",
+            }))}
+          />
         )}
       </Card>
 
@@ -340,13 +295,12 @@ export default async function AnalyticsPage() {
             {atsBreakdown.length > 0 && (
               <>
                 <p className="mb-2 text-[12px] font-medium text-tertiary">By ATS platform</p>
-                <div className="grid gap-2.5">
-                  {atsBreakdown
+                <ProportionBars
+                  total={0}
+                  data={atsBreakdown
                     .sort((a, b) => b.total - a.total)
-                    .map((r) => (
-                      <BarRow key={r.ats} label={r.ats} value={r.agree} total={r.total} colorVar="--accent" />
-                    ))}
-                </div>
+                    .map((r) => ({ label: r.ats, value: r.agree, denom: r.total, colorVar: "--accent" }))}
+                />
               </>
             )}
           </>
@@ -368,31 +322,25 @@ export default async function AnalyticsPage() {
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
               <p className="mb-2 text-[12px] font-medium text-tertiary">By kind</p>
-              <div className="grid gap-2.5">
-                {notifKindRows.map((r) => (
-                  <BarRow
-                    key={r.kind}
-                    label={notifKindLabels[r.kind] ?? r.kind}
-                    value={r.n}
-                    total={notifTotal}
-                    colorVar="--accent"
-                  />
-                ))}
-              </div>
+              <ProportionBars
+                total={notifTotal}
+                data={notifKindRows.map((r) => ({
+                  label: notifKindLabels[r.kind] ?? r.kind,
+                  value: r.n,
+                  colorVar: "--accent",
+                }))}
+              />
             </div>
             <div>
               <p className="mb-2 text-[12px] font-medium text-tertiary">By channel</p>
-              <div className="grid gap-2.5">
-                {notifChannelRows.map((r) => (
-                  <BarRow
-                    key={r.channel}
-                    label={notifChannelLabels[r.channel] ?? r.channel}
-                    value={r.n}
-                    total={notifTotal}
-                    colorVar="--purple"
-                  />
-                ))}
-              </div>
+              <ProportionBars
+                total={notifTotal}
+                data={notifChannelRows.map((r) => ({
+                  label: notifChannelLabels[r.channel] ?? r.channel,
+                  value: r.n,
+                  colorVar: "--purple",
+                }))}
+              />
             </div>
           </div>
         )}
@@ -416,17 +364,13 @@ export default async function AnalyticsPage() {
               {postingStatusTotal === 0 ? (
                 <p className="text-[13px] text-secondary">No postings ingested yet.</p>
               ) : (
-                <div className="grid gap-2.5">
-                  {postingStatusRows.map((r) => (
-                    <BarRow
-                      key={r.status}
-                      label={postingStatusLabels[r.status] ?? r.status}
-                      value={r.n}
-                      total={postingStatusTotal}
-                      colorVar={postingStatusVar[r.status] ?? "--text-tertiary"}
-                    />
-                  ))}
-                </div>
+                <SegmentedBar
+                  data={postingStatusRows.map((r) => ({
+                    label: postingStatusLabels[r.status] ?? r.status,
+                    value: r.n,
+                    colorVar: postingStatusVar[r.status] ?? "--text-tertiary",
+                  }))}
+                />
               )}
             </div>
             <div>
