@@ -1,8 +1,17 @@
 import type { JobLevel, LocationMode, RoleType } from "./index";
 
 const ML_RE = /\b(machine learning|ml engineer|deep learning|computer vision|nlp|llm|ai engineer|artificial intelligence|research scientist|research engineer)\b/i;
-const DATA_RE = /\b(data scien|data engineer|data analy|analytics|business intelligence)\b/i;
+// The trailing \b previously defeated the "data scien"/"data analy" prefixes:
+// a boundary can't fall between "analy" and "st", so "Data Analyst",
+// "Data Scientist", "Data Science", and "Data Analysis" all silently failed to
+// match — and since isRelevantRole also uses this, those roles were dropped
+// from ingest entirely. Spell the endings out instead of prefix-matching.
+const DATA_RE = /\b(data scien(ce|tist)|data engineer|data analy(st|sis|tics?)|analytics|business intelligence)\b/i;
 const QUANT_RE = /\b(quant|quantitative|trading|trader)\b/i;
+// Stricter subset for the description fallback: "trading"/"trader" show up in
+// plenty of ordinary SWE-at-a-fintech JDs, so only the unambiguous quant tokens
+// promote a generically-titled role to quant when the title itself is silent.
+const QUANT_STRONG_RE = /\b(quant|quantitative)\b/i;
 const SWE_RE = /\b(software|swe|backend|back-end|frontend|front-end|full[- ]?stack|mobile|ios|android|devops|infrastructure|platform|security|site reliability|sre|embedded|firmware|systems|cloud|web develop)\b/i;
 
 const INTERN_RE = /\b(intern|internship|co-?op)\b/i;
@@ -19,6 +28,7 @@ export function classifyRole(title: string, description = ""): RoleType {
   if (ML_RE.test(title)) return "ml";
   if (DATA_RE.test(title)) return "data";
   if (SWE_RE.test(title)) return "swe";
+  if (QUANT_STRONG_RE.test(text)) return "quant";
   if (ML_RE.test(text)) return "ml";
   if (DATA_RE.test(text)) return "data";
   if (SWE_RE.test(text)) return "swe";
