@@ -145,15 +145,17 @@ export default async function Dashboard() {
     })),
   ];
 
-  const tileBase =
-    "flex h-full flex-col justify-between rounded-2xl bg-surface p-4 shadow-card transition-shadow hover:shadow-raised";
+  // Clickable tiles get the same tactile hover as posting/tracker cards.
+  const tileLink =
+    "flex h-full flex-col justify-between rounded-2xl bg-surface p-4 shadow-card transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-raised";
+  const tileStatic = "flex h-full flex-col justify-between rounded-2xl bg-surface p-4 shadow-card";
 
   return (
     <>
       {/* Bento hero: greeting + headline metric alongside two stat tiles. */}
       <FadeIn className="mb-4 grid gap-4 md:grid-cols-[1.4fr_1fr]">
         <Link href="/internships" className="group">
-          <div className="flex h-full flex-col justify-between rounded-2xl bg-surface p-5 shadow-card transition-shadow group-hover:shadow-raised">
+          <div className="flex h-full flex-col justify-between rounded-2xl bg-surface p-5 shadow-card transition-[transform,box-shadow] duration-200 group-hover:-translate-y-0.5 group-hover:shadow-raised">
             <div>
               <h1 className="font-display text-[20px] font-bold tracking-tight">{headerTitle}</h1>
               <p className="mt-1 text-[14px] text-secondary">
@@ -176,7 +178,7 @@ export default async function Dashboard() {
 
         <div className="grid grid-rows-2 gap-4">
           <Link href="/tracker" className="group">
-            <div className={tileBase}>
+            <div className={tileLink}>
               <div className="flex items-center justify-between">
                 <p className="text-[13px] font-medium text-secondary">Active applications</p>
                 <ClipboardList className="h-4 w-4 text-accent" />
@@ -187,7 +189,7 @@ export default async function Dashboard() {
               </div>
             </div>
           </Link>
-          <div className={tileBase}>
+          <div className={tileStatic}>
             <div className="flex items-center justify-between">
               <p className="text-[13px] font-medium text-secondary">Reminders this week</p>
               <Bell className="h-4 w-4 text-warning" />
