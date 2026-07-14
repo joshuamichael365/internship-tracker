@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "assistant_chat_history" jsonb DEFAULT '[]'::jsonb NOT NULL;

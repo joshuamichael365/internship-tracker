@@ -78,6 +78,13 @@
       "when": 1783918858168,
       "tag": "0010_perfect_vivisector",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784071859689,
+      "tag": "0011_equal_lightspeed",
+      "breakpoints": true
     }
   ]
 }
