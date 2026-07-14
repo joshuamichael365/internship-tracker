@@ -30,9 +30,9 @@ const NAV = [
   { href: "/internships", label: "Internships", icon: Search },
   { href: "/tracker", label: "Tracker", icon: SquareKanban },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/intake", label: "Screenshot Intake", icon: Camera },
+  { href: "/intake", label: "Intake", icon: Camera },
   { href: "/documents", label: "Documents", icon: FileText },
-  { href: "/resume-studio", label: "Resume Studio", icon: FileEdit },
+  { href: "/resume-studio", label: "Resume", icon: FileEdit },
   { href: "/profile", label: "Profile", icon: UserRound },
   { href: "/archive", label: "Archive", icon: Archive },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -53,7 +53,7 @@ function NavLink({
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[14px] transition-colors ${
+      className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-[13.5px] transition-colors ${
         active
           ? "bg-accent-soft font-medium text-accent"
           : "text-secondary hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]"
@@ -134,7 +134,7 @@ export function TopNav({ account }: { account?: NavAccount | null }) {
       {/* w-max + mx-auto centers the links when they fit and falls back to a
           left-aligned scroll (never a clipped centre) once they overflow. */}
       <nav className="overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="mx-auto flex w-max gap-1 py-2">
+        <div className="mx-auto flex w-max gap-0.5 py-2">
           {NAV.map((item) => (
             <NavLink key={item.href} {...item} active={isActive(item.href)} />
           ))}
