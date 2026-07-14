@@ -46,3 +46,29 @@ export function LogoMark({ size = 32, className }: { size?: number; className?: 
     </svg>
   );
 }
+
+/**
+ * The compass mark as a "thinking" loading indicator — the needle spins
+ * continuously (CSS animation, see .animate-compass-spin in globals.css)
+ * while the rim stays fixed, like a compass hunting for a bearing. Used by
+ * the Assistant chat while waiting on a reply.
+ */
+export function LogoSpinner({ size = 20, className }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 100 100"
+      className={className}
+      role="img"
+      aria-label="Thinking"
+    >
+      <circle cx="50" cy="50" r="44" fill="var(--surface)" stroke="var(--text-tertiary)" strokeWidth="2" />
+      <g className="animate-compass-spin">
+        <path d="M50,14 L58,50 L42,50 Z" fill="var(--accent)" />
+        <path d="M50,86 L42,50 L58,50 Z" fill="var(--purple)" />
+      </g>
+      <circle cx="50" cy="50" r="3.5" fill="var(--text)" />
+    </svg>
+  );
+}

@@ -163,6 +163,24 @@ summary:focus-visible,
   animation: skeleton-shimmer 1.4s ease-in-out infinite;
 }
 
+/* Compass-needle "thinking" spinner — the Assistant chat's loading state.
+   transform-box: fill-box makes the rotation pivot on the needle <g>'s own
+   center regardless of its position in the parent viewBox. Keeps the mark's
+   45°-tilted rest pose as the animation's start/end point. */
+@keyframes compass-spin {
+  from {
+    transform: rotate(45deg);
+  }
+  to {
+    transform: rotate(405deg);
+  }
+}
+.animate-compass-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: compass-spin 1.1s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
 /* Subtle ambient drift for the sign-in page's radial accent. CSS-only, no images. */
 @keyframes signin-glow {
   0%,
@@ -178,6 +196,9 @@ summary:focus-visible,
 }
 @media (prefers-reduced-motion: reduce) {
   .animate-signin-glow {
+    animation: none;
+  }
+  .animate-compass-spin {
     animation: none;
   }
 }

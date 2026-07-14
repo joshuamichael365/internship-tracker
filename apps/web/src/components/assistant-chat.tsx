@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Compass, Eraser, Send } from "lucide-react";
 import { askAssistant, clearAssistantChat } from "@/app/actions/assistant";
+import { LogoSpinner } from "@/components/logo-mark";
 import { RichText } from "@/components/rich-text";
 import { useToast } from "@/components/toast";
 import type { AssistantMessage } from "@/lib/assistant";
@@ -93,12 +94,8 @@ export function AssistantChat({ initialHistory }: { initialHistory: AssistantMes
             ),
           )}
           {pending && (
-            <div className="mr-auto flex items-center gap-2 rounded-2xl rounded-bl-sm bg-surface-secondary px-3.5 py-2.5 text-[13px] text-tertiary">
-              <span className="flex gap-1">
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-tertiary [animation-delay:-0.3s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-tertiary [animation-delay:-0.15s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-tertiary" />
-              </span>
+            <div className="mr-auto flex items-center gap-2.5 rounded-2xl rounded-bl-sm bg-surface-secondary px-3.5 py-2.5 text-[13px] text-tertiary">
+              <LogoSpinner size={20} />
               Checking your tracker…
             </div>
           )}
