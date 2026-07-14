@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { applications, db, eq, postings } from "@tracker/db";
+import { extractPostingDescription } from "@/lib/posting-description";
 
 export async function toggleBookmark(id: number, bookmarked: boolean) {
   await db.update(postings).set({ bookmarked }).where(eq(postings.id, id));
@@ -38,4 +39,26 @@ export async function trackPosting(id: number) {
   });
   revalidatePath("/tracker");
   revalidatePath(`/internships/${id}`);
+}
+
+/**
+ * Fetches the posting's own URL and has Haiku extract a summary — fills the
+ * gap for github_repo sources, whose README tables carry no description.
+ * Persists "" (distinct from null) on a failed attempt so the client knows
+ * not to keep auto-retrying on every page view; "" still renders the same
+ * fallback UI as null everywhere else since both are falsy.
+ */
+export async function generatePostingDescription(id: number): Promise<string> {
+  const [p] = await db.select().from(postings).where(eq(postings.id, id)).limit(1);
+  if (!p || !p.url) return "";
+
+  const description = (await extractPostingDescription({
+    url: p.url,
+    company: p.company,
+    title: p.title,
+  })) ?? "";
+
+  await db.update(postings).set({ description }).where(eq(postings.id, id));
+  revalidatePath(`/internships/${id}`);
+  return description;
 }

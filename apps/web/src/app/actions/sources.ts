@@ -9,6 +9,7 @@ const KIND_CONFIG_FIELDS: Record<SourceKind, string[]> = {
   greenhouse: ["boardToken"],
   lever: ["site"],
   smartrecruiters: ["company"],
+  ashby: ["clientName"],
   workday: ["host", "tenant", "site", "searchText"],
   rss: ["feedUrl", "defaultCompany"],
   instagram_mirror: ["feedUrl", "defaultCompany"],

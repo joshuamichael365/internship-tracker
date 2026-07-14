@@ -1,5 +1,15 @@
 import type { Metadata, Viewport } from "next";
+import { Bricolage_Grotesque } from "next/font/google";
 import "./globals.css";
+
+// Erevnitis' display face. App-wide variable, but only applied at brand
+// moments (the wordmark and page titles) — never on labels, data, or buttons,
+// per the product-register rule that UI copy stays in the system sans.
+const display = Bricolage_Grotesque({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: { default: "Erevnitis", template: "%s — Erevnitis" },
@@ -28,7 +38,7 @@ const themeInit = `(function(){try{var t=localStorage.getItem("theme");var d=t==
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={display.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>

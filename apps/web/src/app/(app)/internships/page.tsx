@@ -159,14 +159,30 @@ export default async function InternshipsPage({
     g.key === "year" ? { ...g, options: years.map((y) => [y, y] as [string, string]) } : g,
   ).filter((g) => g.options.length > 0);
 
+  // Level is only offered when new-grad roles are in scope; sort is always available.
+  if (includeNewGrad) {
+    groups.push({
+      key: "level",
+      label: "Level",
+      anyLabel: "All levels",
+      options: [
+        ["internship", "Internships"],
+        ["new_grad", "New Grad"],
+      ],
+    });
+  }
+  groups.push({
+    key: "sort",
+    label: "Sort",
+    anyLabel: "Newest",
+    options: [
+      ["deadline", "Deadline soonest"],
+      ["company", "Company A–Z"],
+    ],
+  });
+
   const activeFilterCount = FILTER_KEYS.filter((k) => k !== "q" && k !== "sort" && params[k]).length;
   const view = params.view === "list" ? "list" : "card";
-
-  const extraChips = [
-    { key: "saved", value: "1", label: "Saved", active: params.saved === "1" },
-    { key: "sort", value: "deadline", label: "Deadline soonest", active: params.sort === "deadline" },
-    { key: "sort", value: "company", label: "Company A–Z", active: params.sort === "company" },
-  ];
 
   return (
     <>
@@ -199,8 +215,7 @@ export default async function InternshipsPage({
       <FilterBar
         params={params}
         groups={groups}
-        extraChips={extraChips}
-        showLevelToggle={includeNewGrad}
+        savedActive={params.saved === "1"}
         activeFilterCount={activeFilterCount}
       />
 

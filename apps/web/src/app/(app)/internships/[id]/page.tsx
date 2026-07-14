@@ -4,7 +4,7 @@ import { ArrowLeft, Bookmark, ExternalLink, ListPlus } from "lucide-react";
 import { applications, db, eq, inArray, postings, sources } from "@tracker/db";
 import { savePostingNotes, toggleBookmark, trackPosting } from "@/app/actions/postings";
 import { CompanyLogo } from "@/components/company-logo";
-import { RichText } from "@/components/rich-text";
+import { PostingDescription } from "@/components/posting-description";
 import { SubmitButton } from "@/components/submit-button";
 import { Card } from "@/components/ui";
 import { LOCATION_MODE_LABELS, ROLE_LABELS, timeAgo } from "@/lib/format";
@@ -112,13 +112,11 @@ export default async function PostingDetail({ params }: { params: Promise<{ id: 
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <Card>
           <h2 className="mb-2 text-[15px] font-semibold">Description</h2>
-          {posting.description ? (
-            <RichText text={posting.description} />
-          ) : (
-            <p className="text-[14px] text-tertiary">
-              This source doesn&apos;t include a description — open the posting for full details.
-            </p>
-          )}
+          <PostingDescription
+            postingId={posting.id}
+            hasUrl={!!posting.url}
+            initialDescription={posting.description}
+          />
         </Card>
 
         <div className="grid content-start gap-4">

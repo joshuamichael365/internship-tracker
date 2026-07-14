@@ -1,4 +1,4 @@
-import type { NormalizedPosting } from "@tracker/shared";
+import type { LocationMode, NormalizedPosting } from "@tracker/shared";
 import { classifyLevel } from "@tracker/shared";
 import { conditionalFetch, type ConditionalResult } from "./http.js";
 
@@ -96,6 +96,69 @@ export async function pollSmartRecruiters(
       };
     })
     .filter(levelFilter);
+  return { result, postings };
+}
+
+/** Ashby's workplaceType is authoritative — prefer it over the description heuristic. */
+function ashbyLocationMode(workplaceType?: string, isRemote?: boolean): LocationMode | undefined {
+  switch ((workplaceType ?? "").toLowerCase()) {
+    case "remote":
+      return "remote";
+    case "hybrid":
+      return "hybrid";
+    case "onsite":
+    case "on-site":
+      return "onsite";
+    default:
+      return isRemote ? "remote" : undefined;
+  }
+}
+
+export async function pollAshby(
+  config: { clientName: string },
+  prevCache: Record<string, string> | null | undefined,
+): Promise<PollResult> {
+  // Ashby's public Job Posting API — no auth, poll-only. Used by a large slice
+  // of high-growth AI/infra/fintech startups (OpenAI, Ramp, Notion, Linear…),
+  // so it's high-value coverage the community repos surface slowly if at all.
+  const url = `https://api.ashbyhq.com/posting-api/job-board/${config.clientName}?includeCompensation=true`;
+  const result = await conditionalFetch(url, prevCache);
+  if (result.notModified) return { result, postings: [] };
+  const data = JSON.parse(result.body!) as {
+    jobs?: {
+      title: string;
+      employmentType?: string;
+      location?: string;
+      secondaryLocations?: { location?: string }[];
+      isRemote?: boolean;
+      workplaceType?: string;
+      jobUrl?: string;
+      applyUrl?: string;
+      descriptionPlain?: string;
+      publishedAt?: string;
+    }[];
+  };
+  const postings = (data.jobs ?? [])
+    .filter((j) => j.title && (j.jobUrl || j.applyUrl))
+    // employmentType is authoritative for interns; fall back to the title/desc
+    // heuristic so new-grad full-time roles aren't dropped.
+    .filter((j) => j.employmentType === "Intern" || classifyLevel(j.title, j.descriptionPlain ?? "") !== null)
+    .map((j) => {
+      const locations = [
+        j.location,
+        ...(j.secondaryLocations ?? []).map((s) => s.location),
+      ].filter((l): l is string => !!l);
+      return {
+        company: config.clientName,
+        title: j.title,
+        url: j.jobUrl ?? j.applyUrl!,
+        locations,
+        locationMode: ashbyLocationMode(j.workplaceType, j.isRemote),
+        jobLevel: j.employmentType === "Intern" ? ("internship" as const) : undefined,
+        description: j.descriptionPlain?.slice(0, 8000),
+        postedAt: j.publishedAt,
+      };
+    });
   return { result, postings };
 }
 

@@ -16,6 +16,7 @@ export const sourceKind = pgEnum("source_kind", [
   "greenhouse",
   "lever",
   "smartrecruiters",
+  "ashby",
   "workday",
   "rss",
   "instagram_mirror",
@@ -245,6 +246,15 @@ export const settings = pgTable("settings", {
   gmailRefreshToken: text("gmail_refresh_token"),
   gmailConnectedEmail: text("gmail_connected_email"),
   gmailLastSyncAt: timestamp("gmail_last_sync_at", { withTimezone: true }),
+  /**
+   * Assistant chat history (the /chat page) — capped to the most recent
+   * messages by the assistant action. Single-row settings is the natural home
+   * for single-user conversation state (same precedent as latex_resumes.chat_history).
+   */
+  assistantChatHistory: jsonb("assistant_chat_history")
+    .$type<{ role: "user" | "assistant"; content: string }[]>()
+    .notNull()
+    .default([]),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

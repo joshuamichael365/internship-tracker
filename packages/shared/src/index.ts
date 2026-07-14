@@ -11,6 +11,7 @@ export type SourceKind =
   | "greenhouse"
   | "lever"
   | "smartrecruiters"
+  | "ashby"
   | "workday"
   | "rss"
   | "instagram_mirror";

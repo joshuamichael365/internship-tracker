@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useTransition } from "react";
+import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { updateStage } from "@/app/actions/applications";
 import { CompanyLogo } from "@/components/company-logo";
@@ -74,8 +75,15 @@ function Card({ app }: { app: TrackerCard }) {
   };
 
   return (
-    <div
-      className={`rounded-xl bg-surface p-3.5 shadow-card transition-shadow hover:shadow-raised ${pending ? "opacity-50" : "transition-opacity"}`}
+    <motion.div
+      layout
+      layoutId={`card-${app.id}`}
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: pending ? 0.5 : 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      whileHover={{ y: -2 }}
+      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+      className="rounded-xl bg-surface p-3.5 shadow-card transition-shadow duration-200 hover:shadow-raised"
     >
       <Link href={`/tracker/${app.id}`} className="flex items-start gap-2.5">
         <CompanyLogo company={app.company} url={app.url} size="sm" />
@@ -116,45 +124,62 @@ function Card({ app }: { app: TrackerCard }) {
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
-    </div>
+    </motion.div>
   );
 }
+
+// Entrance sweep: columns rise in left-to-right on load, matching the
+// internships grid's staggered reveal.
+const boardStagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
+};
+const columnRise = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] as const } },
+};
 
 export function TrackerBoard({ cards }: { cards: TrackerCard[] }) {
   return (
     <div className="-mx-5 overflow-x-auto px-5 pb-4 md:-mx-10 md:px-10">
-      <div className="flex min-w-max gap-3">
-        {STAGES.map(([stage, label]) => {
-          const items = cards.filter((c) => c.stage === stage);
-          return (
-            <div key={stage} className="w-[260px] shrink-0">
-              <div className="mb-2 flex items-center justify-between px-1">
-                <h2 className="flex items-center gap-1.5 text-[13px] font-semibold text-secondary">
-                  <span className={`h-2 w-2 rounded-full ${STAGE_DOT[stage]}`} />
-                  {label}
-                </h2>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STAGE_TEXT[stage]}`}
-                  style={{ background: `color-mix(in srgb, var(${STAGE_VAR[stage]}) 14%, transparent)` }}
+      <LayoutGroup>
+        <motion.div className="flex min-w-max gap-3" variants={boardStagger} initial="hidden" animate="show">
+          {STAGES.map(([stage, label]) => {
+            const items = cards.filter((c) => c.stage === stage);
+            return (
+              <motion.div key={stage} variants={columnRise} className="w-[260px] shrink-0">
+                <div className="mb-2 flex items-center justify-between px-1">
+                  <h2 className="flex items-center gap-1.5 text-[13px] font-semibold text-secondary">
+                    <span className={`h-2 w-2 rounded-full ${STAGE_DOT[stage]}`} />
+                    {label}
+                  </h2>
+                  <motion.span
+                    layout
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${STAGE_TEXT[stage]}`}
+                    style={{ background: `color-mix(in srgb, var(${STAGE_VAR[stage]}) 14%, transparent)` }}
+                  >
+                    {items.length}
+                  </motion.span>
+                </div>
+                <motion.div
+                  layout
+                  className="grid gap-2 rounded-2xl p-2"
+                  style={{ background: `color-mix(in srgb, var(${STAGE_VAR[stage]}) 5%, var(--background))` }}
                 >
-                  {items.length}
-                </span>
-              </div>
-              <div
-                className="grid gap-2 rounded-2xl p-2"
-                style={{ background: `color-mix(in srgb, var(${STAGE_VAR[stage]}) 5%, var(--background))` }}
-              >
-                {items.map((app) => (
-                  <Card key={app.id} app={app} />
-                ))}
-                {items.length === 0 && (
-                  <p className="px-2 py-6 text-center text-[12px] text-tertiary">Empty</p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    {items.map((app) => (
+                      <Card key={app.id} app={app} />
+                    ))}
+                  </AnimatePresence>
+                  {items.length === 0 && (
+                    <p className="px-2 py-6 text-center text-[12px] text-tertiary">Empty</p>
+                  )}
+                </motion.div>
+              </motion.div>
+            );
+          })}
+        </motion.div>
+      </LayoutGroup>
     </div>
   );
 }
