@@ -128,15 +128,26 @@ function Card({ app }: { app: TrackerCard }) {
   );
 }
 
+// Entrance sweep: columns rise in left-to-right on load, matching the
+// internships grid's staggered reveal.
+const boardStagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
+};
+const columnRise = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] as const } },
+};
+
 export function TrackerBoard({ cards }: { cards: TrackerCard[] }) {
   return (
     <div className="-mx-5 overflow-x-auto px-5 pb-4 md:-mx-10 md:px-10">
       <LayoutGroup>
-        <div className="flex min-w-max gap-3">
+        <motion.div className="flex min-w-max gap-3" variants={boardStagger} initial="hidden" animate="show">
           {STAGES.map(([stage, label]) => {
             const items = cards.filter((c) => c.stage === stage);
             return (
-              <div key={stage} className="w-[260px] shrink-0">
+              <motion.div key={stage} variants={columnRise} className="w-[260px] shrink-0">
                 <div className="mb-2 flex items-center justify-between px-1">
                   <h2 className="flex items-center gap-1.5 text-[13px] font-semibold text-secondary">
                     <span className={`h-2 w-2 rounded-full ${STAGE_DOT[stage]}`} />
@@ -164,10 +175,10 @@ export function TrackerBoard({ cards }: { cards: TrackerCard[] }) {
                     <p className="px-2 py-6 text-center text-[12px] text-tertiary">Empty</p>
                   )}
                 </motion.div>
-              </div>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       </LayoutGroup>
     </div>
   );

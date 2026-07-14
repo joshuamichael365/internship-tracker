@@ -131,10 +131,14 @@ export function TopNav({ account }: { account?: NavAccount | null }) {
           <Account account={account ?? null} />
         </div>
       </div>
-      <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {NAV.map((item) => (
-          <NavLink key={item.href} {...item} active={isActive(item.href)} />
-        ))}
+      {/* w-max + mx-auto centers the links when they fit and falls back to a
+          left-aligned scroll (never a clipped centre) once they overflow. */}
+      <nav className="overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="mx-auto flex w-max gap-1 py-2">
+          {NAV.map((item) => (
+            <NavLink key={item.href} {...item} active={isActive(item.href)} />
+          ))}
+        </div>
       </nav>
     </header>
   );
