@@ -131,10 +131,11 @@ export function TopNav({ account }: { account?: NavAccount | null }) {
           <Account account={account ?? null} />
         </div>
       </div>
-      {/* w-max + mx-auto centers the links when they fit and falls back to a
-          left-aligned scroll (never a clipped centre) once they overflow. */}
-      <nav className="overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="mx-auto flex w-max gap-0.5 py-2">
+      {/* flex-wrap + justify-center keeps the links centred at ANY width or
+          zoom: one centred row when they fit, wrapping to centred rows when
+          they don't — no overflow, no left-aligned fallback. */}
+      <nav className="px-4">
+        <div className="mx-auto flex max-w-7xl flex-wrap justify-center gap-x-1 gap-y-1 py-2">
           {NAV.map((item) => (
             <NavLink key={item.href} {...item} active={isActive(item.href)} />
           ))}
