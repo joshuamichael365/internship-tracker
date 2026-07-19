@@ -29,6 +29,7 @@ export async function updateStage(id: number, stage: ApplicationStage) {
   if (stage === "applied" && !wasApplied) {
     await onApplied(id, app.company, app.roleTitle);
   }
+  revalidatePath(`/tracker/${id}`); // the detail page's stage <select> is controlled — refresh it too
   refresh();
 }
 
@@ -177,11 +178,23 @@ export async function addReminder(applicationId: number, label: string, dueAt: s
 }
 
 export async function toggleReminder(id: number, done: boolean) {
-  await db.update(reminders).set({ done }).where(eq(reminders.id, id));
+  // Reminders' checkboxes live only on the application detail page, whose RSC
+  // isn't covered by refresh() — revalidate the owning app's path too, or the
+  // controlled checkbox snaps back to its old value.
+  const [rem] = await db
+    .update(reminders)
+    .set({ done })
+    .where(eq(reminders.id, id))
+    .returning({ applicationId: reminders.applicationId });
+  if (rem?.applicationId) revalidatePath(`/tracker/${rem.applicationId}`);
   refresh();
 }
 
 export async function deleteReminder(id: number) {
-  await db.delete(reminders).where(eq(reminders.id, id));
+  const [rem] = await db
+    .delete(reminders)
+    .where(eq(reminders.id, id))
+    .returning({ applicationId: reminders.applicationId });
+  if (rem?.applicationId) revalidatePath(`/tracker/${rem.applicationId}`);
   refresh();
 }

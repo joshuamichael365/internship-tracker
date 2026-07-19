@@ -92,8 +92,14 @@ export const syncGmailStatus: Task = async (_payload, { logger }) => {
     if (!meta) continue;
 
     const haystack = `${meta.from} ${meta.subject}`.toLowerCase();
-    const match = tracked.find((a) => haystack.includes(normalizeCompany(a.company)));
-    if (!match || !normalizeCompany(match.company)) continue;
+    // Guard against a company that normalizes to "" — includes("") is always
+    // true, so an empty-normalizing app would shadow every real match. Skip
+    // those in the find, not after, so a genuine later match isn't lost.
+    const match = tracked.find((a) => {
+      const norm = normalizeCompany(a.company);
+      return norm && haystack.includes(norm);
+    });
+    if (!match) continue;
 
     const { signal, confidence } = await classifyStatusSignal({
       company: match.company,

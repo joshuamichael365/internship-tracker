@@ -34,10 +34,25 @@ A **single-user, personal** web app for one person (Joshua, joshuamichael365@gma
   including a preview-before-apply step for chat-proposed changes.
 - **Analytics:** a read-only dashboard (pipeline funnel, automation mode split, recommendation
   accuracy, notification activity, source health) built entirely from existing data.
+- **Assistant** (`/chat`): an in-app AI chatbot (claude-sonnet-5) that answers questions about the
+  user's own job search — what opened today, application statuses, upcoming deadlines, how analytics
+  look — by calling **read-only tools over the live Postgres data** (not a stale context dump), and
+  blends in general recruiting knowledge (typical opening windows, timelines). See §5 flow 8 and
+  `lib/assistant.ts`.
 
 It is deliberately **single-tenant**: no multi-user/sharing features; auth is a hard email allowlist
 of exactly one address. Everything is architected so an iOS app *could* be added later against the
 same backend, but none exists.
+
+**Design/identity (current):** rebranded "Erevnitis" (Greek for "searcher") — a warm cream/charcoal
+palette with a lavender+blue accent pair reserved for highlights, a tilted two-tone **compass** logo
+mark (`components/logo-mark.tsx`, with a spinning-needle `LogoSpinner` used as the Assistant's
+"thinking" indicator), and **Bricolage Grotesque** as a display face applied only at brand moments
+(wordmark, page titles) — never on UI labels/data. Navigation is a **horizontal top bar**
+(`components/top-nav.tsx`, wrap-and-center so it stays centered at any width/zoom) — the old fixed
+left sidebar was removed. Much of the UI/motion polish (animated landing, bento dashboard, dataviz
+analytics charts, filter dropdowns, tracker stage-move animations, page transitions) was done with
+the **Impeccable** design skill; see §9.
 
 **Live production:** https://web-production-64a44.up.railway.app
 **Repo:** github.com/joshuamichael365/internship-tracker (private)
@@ -53,9 +68,11 @@ speed from notification → detail → apply is the whole point).
 
 **`apps/web`** — Next.js **16.2.10** (App Router), React **19.2.4**, TypeScript 5, Tailwind CSS **v4**.
 - `next-auth` **5.0.0-beta.31** (Auth.js v5), Google provider, JWT sessions.
-- `@anthropic-ai/sdk` ^0.109.1 — drafting, resume parsing, semantic option-matching, Resume Studio chat.
+- `@anthropic-ai/sdk` ^0.109.1 — drafting, resume parsing, semantic option-matching, Resume Studio
+  chat, posting-description extraction, and the **Assistant** chatbot (tool use).
 - `pdf-lib` ^1.17.1 — generates cover-letter / short-answer PDFs.
-- `web-push` (used via worker) for VAPID push; `motion` ^12 for animation; `lucide-react` for icons.
+- `web-push` (used via worker) for VAPID push; `motion` ^12 for animation; `lucide-react` for icons;
+  `next/font` loads **Bricolage Grotesque** (display face, exposed as `--font-display`).
 - CodeMirror 6 (`codemirror`, `@codemirror/{state,view,commands,language,legacy-modes}`) — LaTeX editor.
 
 **`apps/worker`** — long-running Node service. `graphile-worker` ^0.16.6 (Postgres-backed cron +
@@ -107,22 +124,23 @@ DEPLOYMENT.md   production setup runbook
 data/           local file uploads (gitignored; prod uses the Railway volume)
 ```
 
-### apps/web/src — pages (App Router; all app pages under the `(app)` route group share the sidebar layout)
+### apps/web/src — pages (App Router; all app pages under the `(app)` route group share the top-nav layout)
 - `app/(app)/page.tsx` — Dashboard: greeting, stat cards, "Needs attention" panel, setup checklist, latest postings.
 - `app/(app)/internships/page.tsx` — browse/search/filter; card **and** list view (`?view=list`), pagination (`?limit=`).
 - `app/(app)/internships/[id]/page.tsx` — posting detail: rich description, notes, bookmark, Track, Apply (hidden when the posting has no URL — screenshot-intake postings), "seen in" sources.
 - `app/(app)/tracker/page.tsx` — Kanban board + add-by-URL form (`components/add-application-form.tsx`).
 - `app/(app)/tracker/[id]/page.tsx` — application detail: stage, mode picker, recommendation, reminders, notes, Assist panel, interview/skill-prep panel.
-- `app/(app)/analytics/page.tsx` — read-only dashboard: pipeline funnel, mode split, recommendation accuracy, notification activity, source health.
+- `app/(app)/analytics/page.tsx` — read-only dashboard: pipeline funnel, mode split, recommendation accuracy, notification activity, source health (charts via `components/charts.tsx`).
+- `app/(app)/chat/page.tsx` — **Assistant** chatbot (`components/assistant-chat.tsx`), loads persisted history from `settings.assistant_chat_history`.
 - `app/(app)/intake/page.tsx` — Screenshot Intake: upload a screenshot, Haiku extracts a posting, user confirms.
 - `app/(app)/documents/page.tsx` — generated documents list with download.
 - `app/(app)/resume-studio/page.tsx` + `[id]/page.tsx` — LaTeX resume list & editor (with preview-before-apply for chat-proposed changes).
 - `app/(app)/profile/page.tsx` — resumes, auto-fill profile fields, application-answers, writing samples.
 - `app/(app)/settings/page.tsx` — sources manager, notification settings (digest hours + watchlist), Automation card (master Auto-Apply kill switch), Gmail status monitoring (P2-M2 connect/disconnect), storage destination.
 - `app/(app)/archive/page.tsx` — expired/hidden postings.
-- `app/(app)/loading.tsx` — skeleton shimmer for all (app) routes.
-- `app/signin/page.tsx` — Google sign-in (public).
-- `app/layout.tsx` — root (theme init, PWA manifest/metadata). `app/globals.css` — HIG design tokens.
+- `app/(app)/loading.tsx` — skeleton shimmer for all (app) routes. `app/(app)/template.tsx` — page-transition + MotionConfig wrapper.
+- `app/signin/page.tsx` — **public landing page** for logged-out visitors (`components/landing.tsx`); redirects an authenticated owner straight to `/`. (Route name is still `/signin`; it's the marketing + Continue-with-Google surface.)
+- `app/layout.tsx` — root (theme init, Bricolage display font, PWA manifest/metadata). `app/globals.css` — HIG design tokens + `@utility font-display`, keyframes (skeleton, signin-glow, compass-spin).
 
 ### apps/web/src/app/actions — server actions (the mutation path, not REST)
 `applications.ts` (stage/mode/reminders/manual-add + `approveAutoApply`), `assist.ts` (drafting +
@@ -133,7 +151,11 @@ cleanup), `postings.ts` (bookmark/notes/track), `prep.ts` (`generatePrep` — in
 generation), `profile.ts` (resume upload/parse, profile save), `samples.ts` (writing samples),
 `settings.ts` (now also `autoApplyEnabled`/`watchlistCompanies`/`digestHours`, plus `disconnectGmail()`
 — revokes the Gmail grant with Google best-effort and clears the stored token), `sources.ts` (source
-CRUD + presets + per-source README `columns` override).
+CRUD + presets + per-source README `columns` override; presets now include Ashby),
+`assistant.ts` (`askAssistant` runs `lib/assistant.ts` + persists to `settings.assistant_chat_history`,
+capped at 30 msgs; `clearAssistantChat`), `postings.ts` also has `generatePostingDescription`
+(the on-view extraction action).
+Also `auth.ts` gained `signInWithGoogleAction` for the landing page's Continue-with-Google forms.
 
 ### apps/web/src/app/api — route handlers (for external callers that can't use server actions)
 - `api/auth/[...nextauth]` — NextAuth handler.
@@ -167,13 +189,29 @@ behavioral, P2-M3), `neetcode.ts` (LeetCode-search + NeetCode-150-link helpers, 
 slug), `latex-compile.ts` (**Tectonic execFile sandbox** — `compileLatexResume` persists,
 `compileLatexPreview` writes a throwaway preview PDF without touching the saved resume — see §6/§9),
 `latex-templates.ts` (built-in Jake's-Resume template), `extension-auth.ts`, `applied-side-effects.ts`
-(`onApplied` — shared receipt + repost-hide logic), `format.ts` (timeAgo, greeting, labels).
+(`onApplied` — shared receipt + repost-hide logic), `format.ts` (timeAgo, greeting, labels),
+`posting-description.ts` (on-view Haiku extraction of a posting's own page into a cached
+`postings.description`; SSRF-guarded fetch, `isPublicHttpUrl`; `""` sentinel persisted on failure so
+it never re-bills), `assistant.ts` (**the Assistant engine** — claude-sonnet-5 with five read-only
+Drizzle tools `search_postings`/`get_posting_stats`/`get_applications`/`get_reminders`/
+`get_analytics_summary`, a bounded tool-use loop `MAX_TOOL_ROUNDS=6` with capped result sizes; every
+tool is a SELECT so the model structurally cannot mutate anything; offline fallback like `drafting.ts`).
 
 ### apps/web/src/components
-`sidebar.tsx` (nav + account footer + sign-out; 10 links including Analytics and Screenshot Intake),
+`top-nav.tsx` (**horizontal top navigation** — brand row with wordmark + `theme-toggle` + account/
+sign-out, over a `flex-wrap justify-center` nav row of all 11 links incl. Assistant; replaced the
+deleted `sidebar.tsx`), `logo-mark.tsx` (the compass `LogoMark` + spinning `LogoSpinner`),
+`landing.tsx` (the animated marketing page rendered at `/signin` for logged-out visitors — brand
+register: display font, scroll-reveal feature rows, ink CTA), `charts.tsx` (`ProportionBars` +
+`SegmentedBar`, the dataviz-method analytics charts), `assistant-chat.tsx` (the `/chat` chat UI —
+bubbles, `RichText` answers, suggestion chips, `LogoSpinner` typing state, clear-chat),
+`posting-description.tsx` (on-view auto-extracted description card + "Try again"),
 `posting-card.tsx` / `posting-list.tsx` / `view-toggle.tsx` (browse views — Apply link hidden when a
-posting has no URL), `filter-bar.tsx`, `company-logo.tsx` (favicon + letter fallback),
-`tracker-board.tsx` (Kanban, stage colors), `application-editor.tsx`, `assist-panel.tsx`,
+posting has no URL; card hover-lift), `filter-bar.tsx` (**per-group dropdowns**, URL-driven,
+open/close animated), `company-logo.tsx` (multi-candidate favicon: URL domain → ATS-URL slug → name
+guess, via DuckDuckGo; letter fallback), `tracker-board.tsx` (Kanban, stage colors, framer
+`layout`/`AnimatePresence` stage-move animations + entrance sweep), `application-editor.tsx`,
+`assist-panel.tsx`,
 `auto-apply-optin.tsx` (pre-submit preview + checkbox), `auto-apply-settings.tsx` (master Auto-Apply
 kill switch), `gmail-settings.tsx` (P2-M2 — Connect/Disconnect + connected-email/last-synced display;
 reads the `?gmail=connected|error` query param the callback route sets and surfaces it as a toast),
@@ -184,8 +222,10 @@ panel), `submit-button.tsx` (drop-in `useFormStatus` pending button), `profile-m
 (+ digest-hours pickers + watchlist input), `storage-settings.tsx`, `latex-studio.tsx` (+
 preview-before-apply banner) / `latex-editor.tsx` / `latex-chat.tsx` (+ Preview button) /
 `new-resume-button.tsx`, `rich-text.tsx` (safe paragraph/bullet/link rendering, no
-`dangerouslySetInnerHTML`), `toast.tsx`, `motion.tsx` (FadeIn/StaggerGrid), `ui.tsx`
-(Card/PageHeader/EmptyState/ModeBadge), `theme-toggle.tsx`.
+`dangerouslySetInnerHTML` — also renders the Assistant's answers), `toast.tsx`, `motion.tsx`
+(FadeIn/StaggerGrid), `ui.tsx` (Card/PageHeader/EmptyState/ModeBadge + the unified `Switch` toggle),
+`theme-toggle.tsx`. Note the `(app)/template.tsx` route file wraps every page in a `MotionConfig
+reducedMotion="user"` + a crossfade page transition (governs all in-app motion's reduced-motion).
 
 ### apps/worker/src
 `index.ts` (graphile-worker boot + task registry + crontab), `ingest.ts` (the pipeline),
@@ -234,7 +274,11 @@ Key columns worth knowing:
   `digest_hours` jsonb default `[8,17]` (twice-daily email digest send times), `last_digest_sent_at`,
   `gmail_enabled` (P2-M2, default false), `gmail_refresh_token` (**a real secret** — a long-lived
   gmail.readonly grant, obtained via the separate `/api/gmail/connect` consent flow, never sign-in),
-  `gmail_connected_email`, `gmail_last_sync_at`.
+  `gmail_connected_email`, `gmail_last_sync_at`, `assistant_chat_history` jsonb `[]` (the Assistant's
+  persisted conversation, capped at 30 messages by `actions/assistant.ts`).
+- `sources.kind` enum now includes `ashby` (public Ashby Job Posting API poller).
+- `postings.description`: null = never extracted; `""` = extraction attempted and failed (sentinel so
+  it's not retried on every view); non-empty = a cached Haiku summary of the posting's own page.
 - `latex_resumes`: `source` (.tex), `compiled_key`, `compile_log`, `chat_history` jsonb.
 
 **Migrations** (drizzle-kit, in `packages/db/migrations/`): `0000` initial schema · `0001`
@@ -243,8 +287,10 @@ notification_rules default → `{}` · `0002` timezone → America/New_York + `a
 `0005` `latex_resumes` (Resume Studio) · `0006` `applications.prep` (interview/skill prep) · `0007`
 `settings.auto_apply_enabled` (master kill switch) · `0008` `settings.watchlist_companies` +
 `digest_hours` + `last_digest_sent_at` (notification overhaul) · `0009` `settings.gmail_enabled` +
-`gmail_refresh_token` + `gmail_connected_email` + `gmail_last_sync_at` (P2-M2). Generate a new one
-after any `schema.ts` change with `pnpm db:generate`, then `pnpm db:migrate`.
+`gmail_refresh_token` + `gmail_connected_email` + `gmail_last_sync_at` (P2-M2) · `0010`
+`source_kind` enum += `ashby` (`ALTER TYPE ... ADD VALUE`) · `0011` `settings.assistant_chat_history`
+(the Assistant). **Both 0010 and 0011 are already applied to the prod DB** (run 2026-07-14). Generate
+a new one after any `schema.ts` change with `pnpm db:generate`, then `pnpm db:migrate`.
 
 **Job queue (graphile-worker, in Postgres).** Crontab in `apps/worker/src/index.ts`:
 ```
@@ -297,6 +343,12 @@ via `select graphile_worker.add_job(...)` (from `lib/applied-side-effects.ts` an
    Automation, default off) before ever reporting `mode: "auto"` to the extension — if the switch is
    off, an approved application is reported as `assist` instead, so the extension structurally cannot
    submit anything while the switch is off, regardless of any individual application's opt-in.
+8. **Assistant (`/chat`):** user asks a question → `askAssistant` (server action) loads persisted
+   history from `settings.assistant_chat_history` and calls `runAssistant` (`lib/assistant.ts`) →
+   claude-sonnet-5 with 5 read-only tools decides which to call, the loop runs the SELECT-only tools
+   against Postgres (bounded to `MAX_TOOL_ROUNDS`, result sizes capped), the model answers from the
+   live results (blending general recruiting knowledge, labeled as such) → reply persisted + rendered
+   via `RichText`. Read-only by construction; on missing `ANTHROPIC_API_KEY` it returns a clear notice.
 
 ---
 
@@ -419,9 +471,34 @@ API key** pays for the app's runtime AI. Separate wallets — agent work never t
 
 ---
 
-## 9. Current state (as of 2026-07-12)
+## 9. Current state (as of 2026-07-14)
 
-**Shipped & live in production (or merged to `sbx`, pending promotion — see §8 branch workflow):**
+**Shipped to production 2026-07-14 (this session — one big `sbx → main` PR, migrations 0010+0011 run
+on prod first, then merged):**
+- **Assistant chatbot (`/chat`)** — claude-sonnet-5 with 5 read-only tools over the live DB; new nav
+  section; history in `settings.assistant_chat_history` (0011). Read-only by construction. See §5/§1.
+- **Ashby ATS poller** — new `source_kind` (0010); public Job Posting API; high-value startup coverage
+  (OpenAI/Ramp/Notion/Linear…). Curate board tokens + enable it in Settings to use.
+- **Auto-extracted posting descriptions** — `github_repo` sources carry no description, so on first
+  view a posting's own page is fetched (SSRF-guarded) + Haiku-summarized into `postings.description`,
+  cached (with a `""`-failure sentinel). `lib/posting-description.ts`.
+- **Role-tagging fixes** — quant-in-description; and a `DATA_RE` bug that had been silently dropping
+  every data-science posting from ingest (`\b`-boundary defeated the prefixes). In `@tracker/shared`.
+- **Full UI/UX overhaul** (much of it via the **Impeccable** design skill, installed under
+  `.claude/skills/impeccable`, gitignored): animated marketing **landing page** at `/signin`;
+  **sidebar → horizontal top nav** (`top-nav.tsx`, wrap-and-center); **bento dashboard** with a
+  7-day sparkline; **analytics charts rebuilt** with the dataviz method (`charts.tsx`); internships
+  **filter dropdowns**; **multi-candidate company logos** (recovered near-all-missing logos);
+  **tracker stage-move animations** + entrance sweep; **page transitions** + app-wide reduced-motion;
+  Bricolage Grotesque display font at brand moments; Resume Studio chat-overflow fix.
+- **QA:** the full diff passed an Opus QA + security gate before merge (SQL-injection-safe assistant
+  tools, read-only guarantee, auto-apply invariant intact, migration ordering, no new lint errors).
+
+**Known post-ship follow-ups (not blocking):** no `error.tsx`/`not-found.tsx` in `app/(app)` (bad
+dynamic IDs render undefined rather than a styled 404); stage moves have no undo; company-logo
+name-guess can occasionally show a *wrong* real logo instead of the letter. See §9 Queued / ideation.
+
+**Shipped & live in production (earlier phases):**
 - **Phase 1 complete** — discovery engine (2 GitHub repos live in prod: SimplifyJobs + vanshb03 2027,
   both enabled; plus Greenhouse/Lever/SmartRecruiters/Workday/RSS pollers ready to add), full tracker,
   Agentic Assist (drafting + doc storage + extension autofill), profile/multi-resume, comprehensive
@@ -518,9 +595,10 @@ feedback. Match each file's existing comment density; comments explain *why*.
 
 **Commit style:** author `Joshua Michael <joshuamichael365@gmail.com>`; every AI-authored commit ends
 with a `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` trailer. Descriptive multi-line
-messages. Work lands on `sbx` first and is promoted sbx → dev → qa → `main` (see §8 branch
-workflow); pushing `main` deploys production, so it only happens when the user asks — and always
-after a clean `pnpm --filter web build`.
+messages. Work lands on `sbx` first and is promoted **`sbx` → `main`** via a QA-gated PR (see §8
+branch workflow); merging `main` deploys production, so it only happens when the user asks — and
+always after a clean `pnpm --filter web build` and (for schema changes) running the migration on the
+prod DB first.
 
 **Agent delegation model (the user's explicit preference):** the manager model (Fable) plans,
 reviews, and talks to the user; it delegates *implementation* to **Sonnet** subagents (Opus only for

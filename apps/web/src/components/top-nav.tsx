@@ -115,7 +115,7 @@ function Account({ account }: { account: NavAccount | null }) {
  * Horizontal top navigation — replaces the old fixed sidebar so page content
  * gets the full window width (notably the Tracker board). A sticky brand row
  * (wordmark + theme + account) sits above a horizontally-scrollable nav row, so
- * all ten destinations stay reachable at any width without a menu.
+ * all eleven destinations stay reachable at any width without a menu.
  */
 export function TopNav({ account }: { account?: NavAccount | null }) {
   const pathname = usePathname();

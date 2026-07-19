@@ -107,8 +107,15 @@ export function LatexChat({
     setInput("");
     setMessages((cur) => [...cur, { role: "user", content: trimmed }]);
     startTransition(async () => {
-      const { reply } = await chatLatex(resumeId, trimmed);
-      setMessages((cur) => [...cur, { role: "assistant", content: reply }]);
+      try {
+        const { reply } = await chatLatex(resumeId, trimmed);
+        setMessages((cur) => [...cur, { role: "assistant", content: reply }]);
+      } catch {
+        setMessages((cur) => [
+          ...cur,
+          { role: "assistant", content: "Something went wrong — try again in a moment." },
+        ]);
+      }
     });
   };
 
