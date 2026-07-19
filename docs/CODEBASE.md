@@ -34,11 +34,12 @@
 
 A single-user web application that:
 
-1. **Discovers** new SWE/ML/CS internship postings in near-real-time by polling community GitHub repos (SimplifyJobs, vanshb03, plus any repo with a non-standard README table via a configurable column map — see §3.5), ATS boards (Greenhouse, Lever, SmartRecruiters, Workday), and RSS/Atom feeds — every minute, with conditional HTTP requests so unchanged sources cost almost nothing. A **Screenshot Intake** page (`/intake`) supplements polling with a manual, vision-assisted route for postings that only ever appear as a social-media screenshot (e.g. an Instagram story) — see §5(g).
+1. **Discovers** new SWE/ML/CS internship postings in near-real-time by polling community GitHub repos (SimplifyJobs, vanshb03, plus any repo with a non-standard README table via a configurable column map — see §3.5), ATS boards (Greenhouse, Lever, SmartRecruiters, **Ashby**, Workday), and RSS/Atom feeds — every minute, with conditional HTTP requests so unchanged sources cost almost nothing. A **Screenshot Intake** page (`/intake`) supplements polling with a manual, vision-assisted route for postings that only ever appear as a social-media screenshot (e.g. an Instagram story) — see §5(g). Postings with no source description get one auto-extracted from their own page on first view (`lib/posting-description.ts`).
 2. **Deduplicates and tags** postings across sources (one card per company+role+location, keyword-classified into SWE/ML/Data/Quant, internship vs new-grad, remote/hybrid/onsite, season/year terms, visa sponsorship).
 3. **Notifies** via web push (instant, quiet-hours aware) and a **twice-daily HTML email digest** (Simplify-style, default 8am/5pm) — with an **instant per-company watchlist** that bypasses the digest and quiet hours entirely for companies the user cares most about (+ SMS if explicitly enabled). See §5(a)/(f).
 4. **Tracks applications** through a seven-stage Kanban pipeline (Saved → In Progress → Applied → Assessment/OA → Interviewing → Offer → Rejected) with per-application reminders/OA deadlines and generated **interview & skill-prep guidance** (focus areas, practice problems linked to LeetCode/NeetCode, project ideas, resources, behavioral prompts) — see §5(h).
 5. **Assists applications** at three explicit, per-application automation levels (below), including LLM-drafted cover letters and short answers in the user's own voice (few-shot from their writing samples), PDF generation, organized document storage (in-app / local download / Google Drive), an in-app **Resume Studio** (LaTeX editor + Tectonic compile + Sonnet chat assistant, with preview-before-apply for chat-proposed changes), browser-side form auto-fill through a companion Chrome extension, and a **read-only Analytics dashboard** (pipeline funnel, mode split, recommendation accuracy, notification activity, source health).
+6. **Answers questions** via an in-app **Assistant** chatbot (`/chat`) — claude-sonnet-5 with read-only tools over the live tracker data (postings/applications/reminders/analytics) plus general recruiting knowledge; see `lib/assistant.ts` (§3.4.2) and the Assistant flow in §5.
 
 ## The three application modes
 
@@ -75,7 +76,7 @@ pnpm workspace monorepo (`pnpm-workspace.yaml`: `apps/*` + `packages/*`), Node �
 | **`apps/extension/`** | Chrome Manifest V3 extension ("Internship Tracker Assist", v0.3.0). Plain JS, no build step, loaded unpacked. Popup + options page + an on-demand-injected content script that fills forms. Implements Agentic Assist filling and Full Auto-Apply submission. No background service worker; no static `content_scripts` registration. |
 | **`packages/db/`** | Drizzle ORM schema (`src/schema.ts`), the Postgres client singleton, drizzle-kit migrations in `migrations/`, and re-exported query operators. Consumed by both web and worker via workspace protocol (`@tracker/db`), imported directly as TypeScript source (`main: ./src/index.ts` — no build). |
 | **`packages/shared/`** | Dependency-free shared TypeScript (`@tracker/shared`): type aliases mirroring DB enums, `NormalizedPosting`, normalization + FNV-1a dedupe hashing, keyword tagging/classification regexes, notification-rule evaluation, and quiet-hours math. Imported by web, worker (and its hash is portable to the extension by design). |
-| **`packages/db/migrations/`** | Nine generated SQL migrations, 0000–0008 (see §4). `migrations/meta/` is drizzle-kit bookkeeping (excluded from this doc). |
+| **`packages/db/migrations/`** | Twelve generated SQL migrations, 0000–0011 (see §4). `migrations/meta/` is drizzle-kit bookkeeping (excluded from this doc). |
 | **`docs/`** | `PROJECT_DOCUMENTATION.pdf` (high-level overview) and this file. |
 | **`data/uploads/`** | **Git-ignored** local upload/document storage root in dev (`UPLOAD_DIR` env var overrides; `/data/uploads` on the Railway volume in prod). Contains `resumes/` keys and generated docs under `Internships/<year>/<Company>_<Role>/`. |
 | **`.claude/launch.json`** | Claude Code preview-server launch config (starts `pnpm --filter web dev` on port 3000). |
@@ -210,8 +211,10 @@ The complete schema — every table documented in §4. Notable in-code comments 
 | `0007_broad_leech.sql` | Adds `settings.auto_apply_enabled boolean DEFAULT false NOT NULL` — the master Auto-Apply kill switch. |
 | `0008_little_absorbing_man.sql` | Adds `settings.watchlist_companies jsonb DEFAULT '[]'`, `settings.digest_hours jsonb DEFAULT '[8,17]'`, `settings.last_digest_sent_at timestamptz` — the twice-daily digest + company-watchlist notification overhaul. |
 | `0009_absent_yellowjacket.sql` | Adds `settings.gmail_enabled boolean DEFAULT false NOT NULL`, `settings.gmail_refresh_token text`, `settings.gmail_connected_email text`, `settings.gmail_last_sync_at timestamptz` — P2-M2 Gmail status monitoring. |
+| `0010_perfect_vivisector.sql` | `ALTER TYPE source_kind ADD VALUE 'ashby' BEFORE 'workday'` — the Ashby ATS poller's new source kind. |
+| `0011_equal_lightspeed.sql` | Adds `settings.assistant_chat_history jsonb DEFAULT '[]' NOT NULL` — the Assistant chatbot's persisted conversation. |
 
-Autofill v2 and semantic option matching (extension v0.2.1/0.3.0) needed no migration — those application-answer fields live inside the schemaless `profile.data` jsonb. The per-source README **column map** (`sources.config.columns`, §3.5) likewise needed no migration — `config` is already jsonb.
+Both 0010 and 0011 were run against the prod DB (2026-07-14) before the code that references them merged. Autofill v2 and semantic option matching (extension v0.2.1/0.3.0) needed no migration — those application-answer fields live inside the schemaless `profile.data` jsonb. The per-source README **column map** (`sources.config.columns`, §3.5) likewise needed no migration — `config` is already jsonb. Posting-description auto-extraction also needed no migration (`postings.description` already existed).
 
 ---
 
@@ -365,6 +368,12 @@ Called by `api/latex/compile/route.ts` (dispatches to one or the other based on 
 #### `src/lib/format.ts`
 Client-safe display helpers: `timeAgo(date)` (coarse "just now/5m/3h/2d/1mo/1y ago"), `ROLE_LABELS` (`swe→SWE, ml→ML, data→Data, quant→Quant, other→Other CS`), `LOCATION_MODE_LABELS` (unknown → empty string so it renders nothing).
 
+#### `src/lib/assistant.ts` — the Assistant chatbot engine
+`runAssistant(history, message)` drives the `/chat` bot on **claude-sonnet-5** via tool use. Defines five **read-only** tools (`search_postings`, `get_posting_stats`, `get_applications`, `get_reminders`, `get_analytics_summary`) — each a Drizzle `db.select()` over the live data (postings/applications/reminders/sources/mode-decisions), wrapped in try/catch so a bad model-supplied enum returns `{error}` instead of crashing. The loop is bounded (`MAX_TOOL_ROUNDS=6`, per-tool result truncated to `TOOL_RESULT_MAX_CHARS=7000`, only the last `HISTORY_WINDOW=12` messages sent, `max_tokens=1200`); it runs the model, executes any requested tools in parallel, feeds results back, and returns the final text turn. Because every tool is a SELECT, the model **structurally cannot mutate state**. System prompt dates itself to America/New_York, instructs plain-text output (rendered via `RichText`), and to label general recruiting knowledge as guidance vs. live data. Offline (no `ANTHROPIC_API_KEY`) it returns a clear notice, mirroring `drafting.ts`.
+
+#### `src/lib/posting-description.ts` — on-view description extraction
+`extractPostingDescription(url)` fetches a posting's own page (SSRF-guarded by `isPublicHttpUrl`: http(s) only, rejects localhost/`.local`/private+loopback+link-local IPv4/IPv6, trailing-dot FQDNs, and bare integer/hex IP encodings — 10s timeout, 60k HTML / 15k text caps), strips it to text, and asks **claude-haiku-4-5** for a concise summary (role/skills/target grad dates/sponsorship). Returns null on any failure; the caller (`actions/postings.ts` `generatePostingDescription`) persists `""` on failure as a sentinel so it isn't re-attempted, or the summary otherwise, into `postings.description`.
+
 ### 3.4.3 `src/app/actions/` — server actions
 
 All are `"use server"` modules called directly from client components (React 19 transitions). None re-check auth beyond the proxy guard — acceptable in a single-user app where every page is session-gated.
@@ -422,10 +431,17 @@ Drafting + document persistence.
 - **`chatLatex(id, userMessage)`** — the conversational assistant. Loads context (current `source`, `profile.data`, the default resume's `parsed` structure), and — without an API key — returns a clearly `[The Claude API key isn't configured yet...]`-labeled offline reply. With a key, model **`claude-sonnet-5`**, `max_tokens: 2500`, system prompt pins: never invent facts absent from the profile/parsed-resume/conversation; when producing LaTeX, output the **complete** updated document wrapped in exactly one `<latex>...</latex>` block (never a partial snippet, never more than one block); stay outside `<latex>` for plain prose. History capped at `MAX_CONTEXT_MESSAGES = 12` sent to the model, `MAX_STORED_MESSAGES = 30` persisted to `chat_history`.
 
 #### `actions/sources.ts`
-- `KIND_CONFIG_FIELDS` — the per-kind config field whitelist (github_repo: repo/branch/listingsPath/**columns**; greenhouse: boardToken; lever: site; smartrecruiters: company; workday: host/tenant/site/searchText; rss + instagram_mirror: feedUrl/defaultCompany). `columns` (added for the README column-map parser, §3.5) is the newest field — a free-text override string like `"company=1,role=2,location=3,link=5"` for repos whose README table doesn't follow the community-standard layout.
+- `KIND_CONFIG_FIELDS` — the per-kind config field whitelist (github_repo: repo/branch/listingsPath/**columns**; greenhouse: boardToken; lever: site; smartrecruiters: company; **ashby: clientName**; workday: host/tenant/site/searchText; rss + instagram_mirror: feedUrl/defaultCompany). `columns` (README column-map parser, §3.5) is a free-text override like `"company=1,role=2,location=3,link=5"` for non-standard README tables.
 - **`addSource(formData)`** — builds the `config` jsonb from only whitelisted, non-empty fields.
 - **`toggleSource` / `deleteSource`** — enable/disable/remove.
 - **`addPresetSource(preset)`** — one-click presets for `"simplify"` (SimplifyJobs/Summer2026-Internships, branch `dev`, `.github/scripts/listings.json`) and `"vanshb03"` (Summer2027-Internships, same layout). These are the two production sources.
+
+#### `actions/assistant.ts` — the Assistant's write/persist path
+- **`askAssistant(message)`** — loads persisted history from `settings.assistant_chat_history`, runs `runAssistant` (`lib/assistant.ts`), then upserts `[...history, user, assistant].slice(-HISTORY_CAP=30)` back with `onConflictDoUpdate` touching **only** `assistant_chat_history` + `updatedAt` (so it can't clobber other settings columns). Returns `{reply}`.
+- **`clearAssistantChat()`** — resets the history to `[]`.
+
+#### `actions/postings.ts` (also)
+Beyond bookmark/notes/track, exposes **`generatePostingDescription(id)`** — calls `lib/posting-description.ts`, persists the summary or `""`-failure sentinel to `postings.description`, revalidates the detail page. And `actions/auth.ts` gained **`signInWithGoogleAction`** (used by the landing page's Continue-with-Google forms) alongside `signOutAction`.
 
 ### 3.4.4 `src/app/api/` — route handlers
 
@@ -508,13 +524,13 @@ Session-guarded `GET`. Reads `code`/`state`/`error` from the query string, reads
 ### 3.4.5 Pages (`src/app/`)
 
 #### `app/layout.tsx` (root layout)
-Imports `globals.css`; metadata title template `"%s — Internships"`; theme-color viewport meta per color scheme. Injects a **blocking inline script before first paint** that applies the stored theme (`localStorage.theme`, falling back to `prefers-color-scheme`) by toggling the `dark` class on `<html>` — the standard anti-flash pattern (with `suppressHydrationWarning` on `<html>` since the class differs from server output).
+Imports `globals.css`; metadata title template `"%s — Erevnitis"`; theme-color viewport meta per color scheme. Loads **Bricolage Grotesque** via `next/font/google` (exposed app-wide as the `--font-display` CSS variable on `<html>`). Injects a **blocking inline script before first paint** that applies the stored theme (`localStorage.theme`, falling back to `prefers-color-scheme`) by toggling the `dark` class on `<html>` — the standard anti-flash pattern (with `suppressHydrationWarning`).
 
-#### `app/signin/page.tsx`
-Centered card with a "Continue with Google" button — an inline server action calling `signIn("google", {redirectTo: "/"})`. Notes "Single-user app — only the owner can sign in."
+#### `app/signin/page.tsx` — the public landing page
+No longer a bare sign-in card: a **server wrapper that redirects an authenticated owner to `/`** and otherwise renders `<Landing/>` (`components/landing.tsx`), the animated marketing page (brand register: Bricolage display headline, scroll-reveal feature rows, ink CTA, Continue-with-Google forms wired to `signInWithGoogleAction`). The route name stays `/signin` — it's both the logged-out home and the sign-in surface (the proxy already whitelists it).
 
 #### `app/(app)/layout.tsx`
-The authenticated app shell: `<Sidebar/>` + `<main>` with `md:ml-60` offset and a `max-w-6xl` content column.
+The authenticated app shell: `<ToastProvider>` wrapping `<TopNav/>` (the horizontal top nav, replacing the old fixed sidebar) + a full-width `<main>` (`mx-auto max-w-7xl px-5 md:px-10`, no sidebar offset). `app/(app)/template.tsx` additionally wraps every page in `<MotionConfig reducedMotion="user">` + a crossfade page-transition on navigation.
 
 #### `app/(app)/page.tsx` — Dashboard
 Six parallel queries: postings new in 24h (count), active applications (count over stages saved…interviewing), reminders due within 7 days (count), 6 latest active postings, up to 8 **overdue** reminders (joined to applications), and up to 8 applications with `blockerRetries >= 3`. Renders three stat cards, then the **"Needs attention"** panel merging overdue reminders (warning/bell icon) and blocked auto-applies (danger/triangle icon, "needs your attention (N retries)"), each row linking to its `/tracker/{id}` page — this is the on-dashboard surface of the blocker flow. Then "Latest postings" in a `StaggerGrid` of `PostingCard`s.
@@ -551,13 +567,16 @@ The mode-selection and assist workspace page.
 Server component, six `Promise.all`-parallelized query groups feeding six cards, all built from data the app already had (`applications`, `postings`, `sources`, `mode_decisions`, `notification_log`) — "no new data collected here" per the page subtitle.
 
 1. **Top stat row** (`StatCard`): total applications (all-time, every stage), "Applied+" (count past Saved/In Progress), active postings tracked, response rate (`interviewing+offer+rejected` ÷ `applied+assessment+interviewing+offer+rejected`, `—` when the denominator is 0).
-2. **Pipeline funnel** — one `BarRow` per stage (count ÷ total applications), colored via a locally-defined `STAGE_VAR` map.
-3. **Automation mode split** — manual/assist/auto/unset counts as `BarRow`s; `unset` (null mode) rendered with a **dashed** ring dot to match `ModeBadge`'s "not chosen" visual language.
+2. **Pipeline funnel** — `ProportionBars` (from `components/charts.tsx`, the dataviz-method chart primitives) one row per stage (count ÷ total applications), colored via a locally-defined `STAGE_VAR` map.
+3. **Automation mode split** — a single 100%-composition `SegmentedBar` (charts.tsx) over manual/assist/auto/unset; `unset` (null mode) carries a **dashed** ring dot in the legend to match `ModeBadge`'s "not chosen" language.
 4. **Recommendation vs. your choice** — overall agreement % from `mode_decisions` (`recommended = chosen`), plus a per-ATS breakdown (`signals->>'ats'` grouped via a raw `sql` filter expression: `count(*) filter (where recommended = chosen)`).
 5. **Notification activity** — `notification_log` grouped by `kind` (instant/digest/confirmation/blocker) and by `channel` (push/email/sms), side by side.
 6. **Sources & postings** — postings grouped by `status` (active/expired/hidden), plus source health (enabled count, most recent `lastPolledAt` via `timeAgo`, and any `lastError`s listed by name).
 
 Every section has its own `EmptyState` for the zero-data case, so a fresh install renders a coherent (if sparse) page rather than blank cards. **Deliberate code duplication, explained in a comment**: `STAGE_LIST`/`STAGE_VAR` are redefined locally rather than imported from `tracker-board.tsx`, because that file is `"use client"` — importing a plain data const from a client module into this server component would turn it into a client reference and crash at render (`STAGE_LIST.map` throwing). Only the `Stage` *type* is imported (type-only imports are erased, so that's safe).
+
+#### `app/(app)/chat/page.tsx` — the Assistant
+Server component: loads `settings.assistant_chat_history` and renders `PageHeader` + `<AssistantChat initialHistory=.../>` (`components/assistant-chat.tsx`). All the chat logic is client-side + the `askAssistant`/`clearAssistantChat` server actions over `lib/assistant.ts` (§3.4.2, and the Assistant flow in §5).
 
 #### `app/(app)/intake/page.tsx` — Screenshot Intake
 Thin server wrapper: `PageHeader` ("Screenshot a story or post announcing a new internship, and Claude will pull out the details for you to confirm.") + `<ScreenshotIntake/>`. All logic lives client-side — see `components/screenshot-intake.tsx` and §5(g).
@@ -589,16 +608,16 @@ The tiny shared kit: `PageHeader` (title/subtitle/actions wrapped in `FadeIn`), 
 "Cheap entrance animations. Fades + a few px of travel only — no layout animations, no exit transitions." `FadeIn` (opacity 0→1, y 6→0, 0.25s ease-out, optional delay) and `StaggerGrid` (children stagger at 0.03s, 0.22s each). Client components wrapping server-rendered content; used by PageHeader, dashboard grids, and both posting grids.
 
 #### `company-logo.tsx`
-Client component; exports `domainFromUrl` + `CompanyLogo`. Derives a company domain from the posting/application URL, **unless** the host is on the `JOB_BOARD_HOSTS` list (greenhouse, lever, ashby, workday, icims, smartrecruiters, workable, bamboohr, jobvite, taleo, successfactors, linkedin, indeed, google, notion, airtable — matched as exact host or subdomain) — job-board hosts don't identify the employer, so those fall back immediately. With a domain, renders `https://www.google.com/s2/favicons?domain=<d>&sz=64` in a bordered rounded square (plain `<img>` to avoid next/image remote-domain config); `onError` swaps to the fallback **letter avatar** (first letter of company on `accent-soft`). Three sizes (sm 32 / md 40 / lg 48). This favicon approach is a deliberate zero-cost choice with known blank-globe misses (§9).
+Client component; exports `domainFromUrl` + `CompanyLogo`. Builds an **ordered list of domain candidates** and tries each in turn, advancing on a favicon 404: (1) the URL host when it's a real company domain (not on `JOB_BOARD_HOSTS`); (2) the company slug embedded in the ATS URL (`greenhouse.io/<slug>`, `<tenant>.myworkdayjobs.com`, `ashbyhq.com/<slug>`, lever/smartrecruiters first path segment) → `<slug>.com`; (3) a domain guessed from the company name (`domainFromCompanyName`, strips corporate-suffix noise). Favicons come from **DuckDuckGo** (`icons.duckduckgo.com/ip3/<domain>.ico`) which returns a real 404 for unknown domains — so a wrong guess cleanly advances to the next candidate or the **letter avatar**, never a stray globe (the old Google-favicon 200-globe problem). Three sizes (sm 32 / md 40 / lg 48). Tradeoff: a generically-named company can occasionally resolve a *wrong* real logo (§9).
 
 #### `filter-bar.tsx`
-Stateless-URL filter chips. `buildLink` reconstructs the querystring from the whitelist `FILTER_KEYS`, toggling one key (clicking an active chip removes it — every chip's href is precomputed, so filtering is pure navigation, SSR-friendly, no client state). Groups render as labeled rows; a "More" row hosts the level toggle (only when new-grad inclusion is on), Saved, and sort chips, plus "Clear all (N)". On mobile (`< md`) the whole bar collapses behind a "Filters" button with an active-count badge; on desktop it's always expanded.
+Stateless-URL filter **dropdowns** (converted from the old pill rows). Each single-select group (Season/Year/Role/Work mode/Sponsorship/Posted/Sort, +Level when new-grad inclusion is on) renders as a compact dropdown showing its label when empty and the selected value with an accent fill when set; "Saved" stays a toggle. `buildLink` reconstructs the querystring from the whitelist `FILTER_KEYS` **plus `PRESERVE_KEYS` (`view`, `limit`)** so a filter change keeps list/card view and pagination; menus are `router.push`-driven (SSR filtering unchanged), open/close animated via `AnimatePresence`, and close on outside-click/Escape. "Clear all" wipes filters but preserves view state.
 
 #### `posting-card.tsx`
 The internships-grid card. Whole card is a `role="link"` div navigating to the detail page (keyboard accessible); the bookmark button and external Apply link `stopPropagation`. Shows logo, company, 2-line-clamped title, the **role-type badge with per-role colors** (`ROLE_COLORS`: swe = accent blue, ml = purple/grape, data = success green, quant = warning orange, other = neutral), neutral chips for first term + New Grad + work mode, first location (+N), found-ago + "· N sources" when deduped from multiple, a warning-tinted deadline pill, and an Apply link revealed on hover — **wrapped in `{posting.url && (...)}`** since Screenshot Intake (§5g) can create postings with an empty `url` ("link in bio" not legible in the screenshot); the same guard was added to `posting-list.tsx`'s row (the list-view equivalent) and the detail page's Apply button.
 
 #### `tracker-board.tsx`
-Exports `STAGES` (the canonical ordered stage list + labels — also imported by ApplicationEditor for its stage dropdown), `Stage` type, `TrackerCard`, `TrackerBoard`. Kanban of 7 fixed columns (260px, horizontal scroll); column headers carry a **stage-colored dot** (`STAGE_DOT`: saved gray, in_progress accent, applied success, assessment warning, interviewing grape, offer success, rejected danger) and a count pill. Cards show logo, company, role, `ModeBadge`, applied/created time, a warning pill for the nearest due-soon reminder, and **chevron buttons that move the card one stage left/right** (`updateStage` in a transition; card dims while pending). No drag-and-drop — deliberate simplicity.
+Exports `STAGES` (the canonical ordered stage list + labels — also imported by ApplicationEditor for its stage dropdown), `Stage` type, `TrackerCard`, `TrackerBoard`. Kanban of 7 fixed columns (260px, horizontal scroll); column headers carry a **stage-colored dot** (`STAGE_DOT`: saved gray, in_progress accent, applied success, assessment warning, interviewing grape, offer success, rejected danger) and a count pill. Cards show logo, company, role, `ModeBadge`, applied/created time, a warning pill for the nearest due-soon reminder, and **chevron buttons that move the card one stage left/right** (`updateStage` in a transition). Still no drag-and-drop, but moves are now **animated**: cards are framer `motion.div`s with `layout` + a shared `layoutId` inside a `LayoutGroup`, and each column's list is an `AnimatePresence mode="popLayout"` — so moving a card glides it to the new column and the rest reflow; the columns also do a staggered entrance sweep on load (`whileHover={{y:-2}}` for the hover-lift, since a CSS transform would fight the layout transform).
 
 #### `application-editor.tsx`
 The right-column control panel on the application page. Cards:
@@ -666,8 +685,26 @@ Two exports. `ResumeManager` — list with Default badge, make-default star, del
 - `APPLICATION_ANSWER_FIELDS` (10 keys, added in Autofill v2): pronouns, requiresSponsorship (Yes/No select), authorizedToWork (select), currentlyEnrolled (select), willingToRelocate (select), gender, raceEthnicity, veteranStatus, disabilityStatus, howDidYouHear → matched by content.js's `ANSWER_RULES` for radio/checkbox/select groups. Caption: "Demographic fields are optional — leave blank to always answer those yourself" (an empty profile value disables the corresponding rule entirely, since rules require a truthy value).
 Everything saves via `saveProfile` into the single `profile.data` jsonb.
 
+#### `top-nav.tsx` (replaced the deleted `sidebar.tsx`)
+The horizontal top navigation used at every breakpoint. A sticky `<header>` with a **brand row** (compass `LogoMark` + "Erevnitis" wordmark in the display font, on the left; `ThemeToggle` + an account/sign-out cluster on the right) over a **nav row** of all **11** links in order — Dashboard, Internships, Tracker, Analytics, **Assistant**, Intake, Documents, Resume, Profile, Archive, Settings (active = `accent-soft` pill; Dashboard active only on exact `/`). The nav row uses `flex-wrap justify-center` inside an `mx-auto` wrapper, so the links **stay centered at any width/zoom** — one centered row when they fit, wrapping to centered rows when they don't (no left-aligned scroll fallback, no clipping). "Screenshot Intake" and "Resume Studio" are shortened to "Intake"/"Resume" in the nav so the row fits and centers on normal laptop widths. The old fixed 240px sidebar (and its `md:ml-60` content offset) is gone; content is full-width `max-w-7xl`.
+
+#### `assistant-chat.tsx`
+The `/chat` client UI, styled like `latex-chat.tsx`: a fixed-height card (`100dvh-20rem`, `min-h-22rem`) with a scrolling message area (user bubbles in `accent-soft`, assistant answers via `RichText`), starter **suggestion chips**, a `LogoSpinner` "Checking your tracker…" typing indicator, a clear-chat button, and Enter-to-send. Calls `askAssistant`/`clearAssistantChat`; has try/catch so a failed call shows an error bubble.
+
+#### `charts.tsx`
+The analytics chart primitives, built to the dataviz method: **`ProportionBars`** (ordered magnitude rows — thin marks, 4px rounded data-ends on a recessive track, per-row `denom` for rates, grow-in on mount, native per-mark hover title, values in ink tokens) and **`SegmentedBar`** (a single 100%-composition bar with a legend + 2px surface gaps). Colors are the app's own stage/mode/status CSS-var tokens (a fixed categorical order), not a generated ramp.
+
+#### `landing.tsx`
+The animated marketing page rendered by `app/signin/page.tsx` for logged-out visitors (brand register via the Impeccable skill). Sticky nav, gradient display headline, a parallax-free product mock, `flex-wrap` scroll-revealed feature rows (staggered blur-rise), a secondary feature grid, and one committed ink CTA block. Every "Continue with Google" is a form bound to `signInWithGoogleAction`. Wrapped in `MotionConfig reducedMotion="user"`.
+
+#### `posting-description.tsx`
+Client card on the posting detail page: on first mount for a never-attempted posting (`initialDescription === null && hasUrl`) it calls `generatePostingDescription`; shows a loading state, then the `RichText`-rendered summary, or a graceful "couldn't extract — Try again" fallback. The `""`-failure sentinel means it never auto-retries.
+
+#### `logo-mark.tsx`
+The two-tone tilted compass `LogoMark` (rim + degree ticks + accent/purple needle, self-simplifying below 40px) and **`LogoSpinner`** — the same mark with a CSS-animated spinning needle (`.animate-compass-spin`), used as the Assistant's thinking indicator.
+
 #### `sidebar.tsx`
-Desktop: fixed 240px sidebar (translucent `--sidebar` + backdrop-blur) with logo mark, **10** nav links in order — Dashboard, Internships, Tracker, **Analytics**, **Screenshot Intake**, Documents, **Resume Studio**, Profile, Archive, Settings (active = `accent-soft` pill; Dashboard active only on exact `/`) — ThemeToggle at bottom. Mobile: sticky top bar + horizontally scrolling pill nav. (Analytics/`BarChart3`, Screenshot Intake/`Camera`, and Resume Studio/`FileEdit` are the icons added across the Phase-3/Resume-Studio/Screenshot-Intake work — Resume Studio predates this doc revision but was previously undocumented here.)
+**Deleted** — replaced by `top-nav.tsx` (above).
 
 #### `sources-manager.tsx`
 Sources list with kind label, last-polled time, and `lastError` surfaced in danger color with an alert icon (poller failures are user-visible); enabled switch; delete. Preset buttons (+SimplifyJobs, +vanshb03) shown only when `hasPresets` is false. The add form renders kind-specific fields from `KIND_FIELDS` (mirroring the server-side whitelist) with realistic placeholders (e.g. Workday host `nvidia.wd5.myworkdayjobs.com`). `github_repo`'s field list includes the **README column map** input — labeled "README column map (optional, non-standard tables only)", placeholder `company=1,role=2,location=3,link=5` — for repos whose table layout deviates from the community standard (see `sources/github.ts` §3.5).
