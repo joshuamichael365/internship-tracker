@@ -70,8 +70,12 @@ export function NotificationSettings({ initial, vapidPublicKey }: Props) {
 
   function save(update: SettingsUpdate) {
     startTransition(async () => {
-      await updateSettings(update);
-      showToast("Settings saved");
+      try {
+        await updateSettings(update);
+        showToast("Settings saved");
+      } catch {
+        showToast("Couldn't save — try again");
+      }
     });
   }
 

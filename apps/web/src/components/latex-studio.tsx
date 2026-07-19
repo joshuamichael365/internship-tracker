@@ -202,7 +202,7 @@ export function LatexStudio({ data }: { data: LatexStudioData }) {
   const dirty = source !== savedSource;
 
   return (
-    <div className="flex h-[calc(100dvh-11rem)] min-h-[30rem] flex-col gap-3">
+    <div className="flex h-[calc(100dvh-13rem)] min-h-[30rem] flex-col gap-3">
       {/* Top bar */}
       <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-surface p-3 shadow-card">
         <input

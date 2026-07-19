@@ -53,7 +53,7 @@ export function AssistantChat({ initialHistory }: { initialHistory: AssistantMes
   };
 
   return (
-    <div className="flex h-[calc(100dvh-16rem)] min-h-[28rem] flex-col rounded-2xl bg-surface p-4 shadow-card">
+    <div className="flex h-[calc(100dvh-20rem)] min-h-[22rem] flex-col rounded-2xl bg-surface p-4 shadow-card">
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-1 py-2">
         {messages.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center gap-4 text-center">

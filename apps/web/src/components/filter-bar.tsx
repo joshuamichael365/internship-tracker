@@ -28,11 +28,14 @@ const FILTER_KEYS = [
   "sort",
 ] as const;
 
+/** Non-filter view state that must survive a filter change (view mode, pagination). */
+const PRESERVE_KEYS = ["view", "limit"] as const;
+
 type Params = Record<string, string | undefined>;
 
 function buildLink(params: Params, key: string, value: string | null): string {
   const next = new URLSearchParams();
-  for (const k of FILTER_KEYS) if (params[k]) next.set(k, params[k]!);
+  for (const k of [...FILTER_KEYS, ...PRESERVE_KEYS]) if (params[k]) next.set(k, params[k]!);
   if (value === null) next.delete(key);
   else next.set(key, value);
   const qs = next.toString();
@@ -167,6 +170,11 @@ export function FilterBar({
   const router = useRouter();
   const go = (key: string, value: string | null) => router.push(buildLink(params, key, value));
 
+  // "Clear all" wipes filters but keeps view state (list/card, pagination).
+  const clearAllQs = new URLSearchParams();
+  for (const k of PRESERVE_KEYS) if (params[k]) clearAllQs.set(k, params[k]!);
+  const clearAllHref = clearAllQs.toString() ? `/internships?${clearAllQs}` : "/internships";
+
   return (
     <div className="mb-5 flex flex-wrap items-center gap-2">
       {groups.map((g) => (
@@ -192,7 +200,7 @@ export function FilterBar({
 
       {activeFilterCount > 0 && (
         <Link
-          href="/internships"
+          href={clearAllHref}
           className="ml-0.5 rounded-full px-2.5 py-1.5 text-[13px] font-medium text-accent transition-colors hover:bg-accent-soft"
         >
           Clear all ({activeFilterCount})

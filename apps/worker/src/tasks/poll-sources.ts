@@ -70,7 +70,14 @@ export const pollSources: Task = async (_payload, { logger }) => {
       logger.error(`${source.name}: ${message}`);
       await db
         .update(sources)
-        .set({ lastPolledAt: new Date(), lastError: message })
+        .set({
+          // Preserve lastPolledAt=null for a source that has never successfully
+          // polled, so its first SUCCESSFUL poll is still treated as the silent
+          // backfill — otherwise a failed first poll here would let the next
+          // success notify on every one of its (potentially thousands of) rows.
+          ...(source.lastPolledAt ? { lastPolledAt: new Date() } : {}),
+          lastError: message,
+        })
         .where(eq(sources.id, source.id));
     }
   }
