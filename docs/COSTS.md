@@ -35,11 +35,18 @@ independent. You can build all day on the subscription without moving the API ba
 | Draft one short answer | claude-sonnet-5 | 1–2¢ |
 | Parse an uploaded resume | claude-haiku-4-5 | <1¢ |
 | Semantic option match (one unclear dropdown/radio) | claude-haiku-4-5 | ~0.1¢ |
+| Interview/skill prep for a posting | claude-sonnet-5 | 1–2¢ |
+| Auto-extract a posting's description (once per posting, then cached forever) | claude-haiku-4-5 | ~0.2¢ |
+| Screenshot Intake extraction | claude-haiku-4-5 | ~0.3¢ |
+| **Assistant question** (`/chat`, 1–3 Sonnet calls with small tool payloads) | claude-sonnet-5 | 1–3¢ |
 | **Fully AI-assisted application** (letter + 2 answers + a few matches) | — | **~5–8¢** |
 
 Reference points: the $5 starting credit covers roughly **60–100 fully assisted applications**.
-Discovery, notifications, filtering, and the tracker use **zero** API tokens — polling and tagging
-run on free keyword heuristics.
+Discovery, notifications, filtering, tagging, and the tracker use **zero** API tokens — polling and
+tagging run on free keyword heuristics. The **Assistant** only bills when you actually ask a question
+(nothing at idle); ~20 questions/day would add roughly $10–15/mo on top, but realistic personal use is
+a couple of dollars. All AI features degrade gracefully if the key is unset or hits a spend cap
+(drafts fall back to placeholders, descriptions show "try again," the Assistant says it's unavailable).
 
 ## What development has cost (for transparency)
 

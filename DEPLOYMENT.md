@@ -25,7 +25,10 @@ Steps marked **[you]** need your accounts/browser; everything else is config tha
    - Worker: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NOTIFY_EMAIL_TO`, `RESEND_API_KEY`, `TWILIO_*`, `ANTHROPIC_API_KEY`
    - **Generate fresh VAPID keys for prod** (`pnpm dlx web-push generate-vapid-keys`) — don't reuse the dev pair in git-ignored `.env`.
 6. Attach a **volume** to the web service mounted at `/data` (uploads/documents persist across deploys).
-7. Run migrations once: `railway run --service web pnpm db:migrate`.
+7. Run migrations once: `railway run --service web pnpm db:migrate`. **On every later schema change, run
+   the new migration against the prod DB BEFORE merging the code that references it** — the app is
+   currently at migration `0011`. The reliable one-liner:
+   `DATABASE_URL=$(railway variables -s Postgres --json | jq -r .DATABASE_PUBLIC_URL) pnpm db:migrate`.
 8. Verify: open the web domain, sign in with Google, add the SimplifyJobs source, close your laptop, and confirm a notification arrives on your phone when the repo next updates.
 
 ## 2. Google OAuth — sign-in now, Drive/Gmail later
